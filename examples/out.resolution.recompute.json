@@ -1,0 +1,87 @@
+{
+  "format": "compat-resolution/v1",
+  "browser": "chrome",
+  "mode": "recompute",
+  "state": "exact",
+  "declared_support_floor": "120",
+  "derived_technical_floor": "114",
+  "known_floor": "114",
+  "compatible_with_declared_floor": true,
+  "monotonic": true,
+  "blocking_requirements": [
+    "bcd:css.properties.text-wrap"
+  ],
+  "requirements": [
+    {
+      "ref": "bcd:api.IDBFactory.open",
+      "reason": null,
+      "from": "23",
+      "release_date": "2012-11-06",
+      "removed_in": null,
+      "removed_release_date": null,
+      "last_supported": null,
+      "monotonic": true,
+      "statement": {
+        "version_added": "23"
+      },
+      "state": "exact"
+    },
+    {
+      "ref": "bcd:api.Navigator.share",
+      "reason": null,
+      "from": "61",
+      "release_date": "2017-09-05",
+      "removed_in": null,
+      "removed_release_date": null,
+      "last_supported": null,
+      "monotonic": true,
+      "statement": {
+        "version_added": "61"
+      },
+      "state": "exact"
+    },
+    {
+      "ref": "bcd:css.properties.text-wrap",
+      "reason": null,
+      "from": "114",
+      "release_date": "2023-05-30",
+      "removed_in": null,
+      "removed_release_date": null,
+      "last_supported": null,
+      "monotonic": true,
+      "statement": {
+        "version_added": "114"
+      },
+      "state": "exact"
+    },
+    {
+      "ref": "bcd:html.elements.dialog",
+      "reason": null,
+      "from": "37",
+      "release_date": "2014-08-26",
+      "removed_in": null,
+      "removed_release_date": null,
+      "last_supported": null,
+      "monotonic": true,
+      "statement": {
+        "version_added": "37"
+      },
+      "state": "exact"
+    },
+    {
+      "ref": "manual:behavior.structured-clone.transfer",
+      "state": "exact",
+      "reason": "manual",
+      "from": "104",
+      "release_date": null,
+      "removed_in": null,
+      "removed_release_date": null,
+      "last_supported": null,
+      "monotonic": true,
+      "statement": {
+        "version_added": "104",
+        "manual": true
+      }
+    }
+  ]
+}

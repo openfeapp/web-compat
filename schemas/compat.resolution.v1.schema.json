@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/openfeapp/web-compat/main/schemas/compat.resolution.v1.schema.json",
+  "title": "compat-resolution/v1",
+  "type": "object",
+  "required": ["format", "browser", "mode", "state", "monotonic", "requirements"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "format": { "const": "compat-resolution/v1" },
+    "browser": { "type": "string", "minLength": 1 },
+    "mode": { "enum": ["replay", "recompute"] },
+    "state": {
+      "enum": ["exact", "conservative", "unresolved", "unsatisfied"]
+    },
+    "declared_support_floor": {
+      "type": ["string", "null"]
+    },
+    "derived_technical_floor": {
+      "type": ["string", "null"]
+    },
+    "known_floor": {
+      "type": ["string", "null"]
+    },
+    "compatible_with_declared_floor": {
+      "type": ["boolean", "null"]
+    },
+    "monotonic": { "type": "boolean" },
+    "blocking_requirements": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "requirements": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["ref", "state", "monotonic"],
+        "properties": {
+          "ref": { "type": "string" },
+          "state": { "enum": ["exact", "conservative", "unknown", "unsupported"] },
+          "reason": { "type": ["string", "null"] },
+          "from": { "type": ["string", "null"] },
+          "removed_in": { "type": ["string", "null"] },
+          "last_supported": { "type": ["string", "null"] },
+          "monotonic": { "type": "boolean" }
+        },
+        "additionalProperties": true
+      }
+    }
+  },
+  "additionalProperties": true
+}

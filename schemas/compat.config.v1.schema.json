@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/openfeapp/web-compat/main/schemas/compat.config.v1.schema.json",
+  "title": "compat-config/v1",
+  "type": "object",
+  "required": ["format", "targets"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "format": { "const": "compat-config/v1" },
+    "targets": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "manual_requirements": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["kind", "id", "targets"],
+        "properties": {
+          "kind": { "const": "manual" },
+          "id": { "type": "string", "minLength": 1 },
+          "title": { "type": "string" },
+          "reason": { "type": "string" },
+          "targets": {
+            "type": "object",
+            "minProperties": 1,
+            "additionalProperties": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "source": {
+            "type": "array",
+            "items": { "type": "string", "minLength": 1 }
+          }
+        },
+        "additionalProperties": true
+      }
+    }
+  },
+  "additionalProperties": true
+}

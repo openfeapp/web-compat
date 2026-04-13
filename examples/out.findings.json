@@ -1,0 +1,86 @@
+{
+  "format": "compat-findings/v1",
+  "generated_at": "2026-04-13T20:41:48.620Z",
+  "tool": {
+    "scanner": "sample-scanner/1.0.0",
+    "registry": "sample-scanner-registry/1"
+  },
+  "findings": [
+    {
+      "kind": "bcd",
+      "ref": "bcd:api.IDBFactory.open",
+      "key": "api.IDBFactory.open",
+      "selector": {
+        "prefix": null,
+        "alternative_name": null,
+        "allow_flags": false,
+        "allow_partial_implementation": false
+      },
+      "evidence": [
+        {
+          "path": "examples/example-app/dist/app.js",
+          "loc": "2:19-2:33",
+          "rule": "js/member-call/IDBFactory.open",
+          "snippet": "indexedDB.open("
+        }
+      ]
+    },
+    {
+      "kind": "bcd",
+      "ref": "bcd:api.Navigator.share",
+      "key": "api.Navigator.share",
+      "selector": {
+        "prefix": null,
+        "alternative_name": null,
+        "allow_flags": false,
+        "allow_partial_implementation": false
+      },
+      "evidence": [
+        {
+          "path": "examples/example-app/dist/app.js",
+          "loc": "3:7-3:21",
+          "rule": "js/property/Navigator.share",
+          "snippet": "navigator.share"
+        }
+      ]
+    },
+    {
+      "kind": "bcd",
+      "ref": "bcd:css.properties.text-wrap",
+      "key": "css.properties.text-wrap",
+      "selector": {
+        "prefix": null,
+        "alternative_name": null,
+        "allow_flags": false,
+        "allow_partial_implementation": false
+      },
+      "evidence": [
+        {
+          "path": "examples/example-app/dist/app.css",
+          "loc": "2:2-2:12",
+          "rule": "css/property/text-wrap",
+          "snippet": " text-wrap:"
+        }
+      ]
+    },
+    {
+      "kind": "bcd",
+      "ref": "bcd:html.elements.dialog",
+      "key": "html.elements.dialog",
+      "selector": {
+        "prefix": null,
+        "alternative_name": null,
+        "allow_flags": false,
+        "allow_partial_implementation": false
+      },
+      "evidence": [
+        {
+          "path": "examples/example-app/dist/index.html",
+          "loc": "4:5-4:11",
+          "rule": "html/element/dialog",
+          "snippet": "<dialog"
+        }
+      ]
+    }
+  ]
+}

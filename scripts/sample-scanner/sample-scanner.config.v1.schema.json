@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/openfeapp/web-compat/main/scripts/sample-scanner/sample-scanner.config.v1.schema.json",
+  "title": "sample-scanner-config/v1",
+  "type": "object",
+  "required": ["format", "roots"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "format": { "const": "sample-scanner-config/v1" },
+    "roots": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "minItems": 1
+    },
+    "extensions": {
+      "type": "array",
+      "items": { "type": "string", "pattern": "^\\." },
+      "default": [".js", ".css", ".html"]
+    },
+    "exclude_substrings": {
+      "type": "array",
+      "items": { "type": "string" },
+      "default": []
+    }
+  },
+  "additionalProperties": true
+}

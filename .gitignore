@@ -1,0 +1,5 @@
+.DS_Store
+node_modules/
+test.json
+*.tgz
+npm-debug.log*

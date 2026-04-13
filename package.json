@@ -1,0 +1,35 @@
+{
+  "name": "@openfeapp/web-compat",
+  "version": "0.1.0",
+  "description": "Early public CLI and schemas for web app compatibility findings, lockfiles, and resolution.",
+  "author": "Simon Cheng",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/openfeapp/web-compat.git"
+  },
+  "homepage": "https://github.com/openfeapp/web-compat#readme",
+  "bugs": {
+    "url": "https://github.com/openfeapp/web-compat/issues"
+  },
+  "keywords": [
+    "browser-compatibility",
+    "browser-compat-data",
+    "compatibility",
+    "lockfile",
+    "web-compat"
+  ],
+  "type": "module",
+  "bin": {
+    "compat-generate-config": "./bin/compat-generate-config.mjs",
+    "compat-generate-lock": "./bin/compat-generate-lock.mjs",
+    "compat-resolve": "./bin/compat-resolve.mjs"
+  },
+  "scripts": {
+    "generate-config": "node bin/compat-generate-config.mjs",
+    "generate-lock": "node bin/compat-generate-lock.mjs",
+    "resolve": "node bin/compat-resolve.mjs",
+    "sample-scan": "node scripts/sample-scanner/sample-scan.mjs",
+    "test": "node --test"
+  }
+}

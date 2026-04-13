@@ -1,0 +1,63 @@
+{
+  "version": "sample-scanner-registry/1",
+  "js": [
+    {
+      "id": "js/member-call/IDBFactory.open",
+      "pattern": "\\bindexedDB\\.open\\s*\\(",
+      "emit": {
+        "key": "api.IDBFactory.open"
+      },
+      "selector": {
+        "prefix": null,
+        "alternative_name": null,
+        "allow_flags": false,
+        "allow_partial_implementation": false
+      }
+    },
+    {
+      "id": "js/property/Navigator.share",
+      "pattern": "\\bnavigator\\.share\\b",
+      "emit": {
+        "key": "api.Navigator.share"
+      },
+      "selector": {
+        "prefix": null,
+        "alternative_name": null,
+        "allow_flags": false,
+        "allow_partial_implementation": false
+      }
+    }
+  ],
+  "css": [
+    {
+      "id": "css/property/text-wrap",
+      "pattern": "(?:^|[\\s{;])text-wrap\\s*:",
+      "flags": "im",
+      "emit": {
+        "key": "css.properties.text-wrap"
+      },
+      "selector": {
+        "prefix": null,
+        "alternative_name": null,
+        "allow_flags": false,
+        "allow_partial_implementation": false
+      }
+    }
+  ],
+  "html": [
+    {
+      "id": "html/element/dialog",
+      "pattern": "<dialog\\b",
+      "flags": "i",
+      "emit": {
+        "key": "html.elements.dialog"
+      },
+      "selector": {
+        "prefix": null,
+        "alternative_name": null,
+        "allow_flags": false,
+        "allow_partial_implementation": false
+      }
+    }
+  ]
+}

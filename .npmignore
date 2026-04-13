@@ -1,0 +1,9 @@
+.git/
+.DS_Store
+DEVOPS.md
+examples/
+scripts/
+tests/
+test.json
+*.log
+*.tgz

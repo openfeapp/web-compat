@@ -1,0 +1,106 @@
+{
+  "__meta": {
+    "version": "fixture-2026.04.13",
+    "timestamp": "2026-04-13T00:00:00.000Z"
+  },
+  "browsers": {
+    "chrome": {
+      "name": "Chrome",
+      "type": "desktop",
+      "releases": {
+        "23": { "release_date": "2012-11-06", "status": "retired", "engine": "Blink", "engine_version": "537" },
+        "37": { "release_date": "2014-08-26", "status": "retired", "engine": "Blink", "engine_version": "537" },
+        "61": { "release_date": "2017-09-05", "status": "retired", "engine": "Blink", "engine_version": "61" },
+        "104": { "release_date": "2022-08-02", "status": "retired", "engine": "Blink", "engine_version": "104" },
+        "114": { "release_date": "2023-05-30", "status": "retired", "engine": "Blink", "engine_version": "114" },
+        "120": { "release_date": "2023-12-05", "status": "retired", "engine": "Blink", "engine_version": "120" }
+      }
+    }
+  },
+  "api": {
+    "IDBFactory": {
+      "open": {
+        "__compat": {
+          "description": "IDBFactory.open()",
+          "spec_url": [
+            "https://w3c.github.io/IndexedDB/#dom-idbfactory-open"
+          ],
+          "support": {
+            "chrome": {
+              "version_added": "23"
+            }
+          },
+          "status": {
+            "experimental": false,
+            "standard_track": true,
+            "deprecated": false
+          }
+        }
+      }
+    },
+    "Navigator": {
+      "share": {
+        "__compat": {
+          "description": "Navigator.share",
+          "spec_url": [
+            "https://w3c.github.io/web-share/#dom-navigator-share"
+          ],
+          "support": {
+            "chrome": {
+              "version_added": "61"
+            }
+          },
+          "status": {
+            "experimental": false,
+            "standard_track": true,
+            "deprecated": false
+          }
+        }
+      }
+    }
+  },
+  "css": {
+    "properties": {
+      "text-wrap": {
+        "__compat": {
+          "description": "text-wrap",
+          "spec_url": [
+            "https://drafts.csswg.org/css-text-4/#text-wrap-property"
+          ],
+          "support": {
+            "chrome": {
+              "version_added": "114"
+            }
+          },
+          "status": {
+            "experimental": false,
+            "standard_track": true,
+            "deprecated": false
+          }
+        }
+      }
+    }
+  },
+  "html": {
+    "elements": {
+      "dialog": {
+        "__compat": {
+          "description": "dialog element",
+          "spec_url": [
+            "https://html.spec.whatwg.org/multipage/interactive-elements.html#the-dialog-element"
+          ],
+          "support": {
+            "chrome": {
+              "version_added": "37"
+            }
+          },
+          "status": {
+            "experimental": false,
+            "standard_track": true,
+            "deprecated": false
+          }
+        }
+      }
+    }
+  }
+}

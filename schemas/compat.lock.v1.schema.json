@@ -1,0 +1,194 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/openfeapp/web-compat/main/schemas/compat.lock.v1.schema.json",
+  "title": "compat-lock/v1",
+  "type": "object",
+  "required": ["format", "generated_at", "tool", "targets", "requirements", "summary"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "format": { "const": "compat-lock/v1" },
+    "generated_at": { "type": "string", "format": "date-time" },
+    "tool": {
+      "type": "object",
+      "required": ["generator", "datasets"],
+      "properties": {
+        "generator": { "type": "string" },
+        "scanner": { "type": "string" },
+        "registry": { "type": "string" },
+        "datasets": {
+          "type": "object",
+          "properties": {
+            "bcd": {
+              "type": "object",
+              "properties": {
+                "version": { "type": ["string", "null"] },
+                "timestamp": { "type": ["string", "null"] }
+              },
+              "additionalProperties": true
+            }
+          },
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": true
+    },
+    "targets": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": { "type": "string", "minLength": 1 }
+    },
+    "requirements": {
+      "type": "array",
+      "items": {
+        "oneOf": [
+          { "$ref": "#/$defs/bcdRequirement" },
+          { "$ref": "#/$defs/manualRequirement" }
+        ]
+      }
+    },
+    "summary": {
+      "type": "object",
+      "required": ["by_browser"],
+      "properties": {
+        "by_browser": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/browserSummary" }
+        }
+      },
+      "additionalProperties": true
+    }
+  },
+  "$defs": {
+    "selector": {
+      "type": "object",
+      "required": ["prefix", "alternative_name", "allow_flags", "allow_partial_implementation"],
+      "properties": {
+        "prefix": { "type": ["string", "null"] },
+        "alternative_name": { "type": ["string", "null"] },
+        "allow_flags": { "type": "boolean" },
+        "allow_partial_implementation": { "type": "boolean" }
+      },
+      "additionalProperties": false
+    },
+    "evidence": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["path", "rule"],
+        "properties": {
+          "path": { "type": "string" },
+          "loc": { "type": "string" },
+          "rule": { "type": "string" },
+          "snippet": { "type": "string" }
+        },
+        "additionalProperties": true
+      }
+    },
+    "resolution": {
+      "type": "object",
+      "required": ["state", "monotonic"],
+      "properties": {
+        "state": {
+          "enum": ["exact", "conservative", "unknown", "unsupported"]
+        },
+        "reason": {
+          "type": ["string", "null"]
+        },
+        "from": {
+          "type": ["string", "null"]
+        },
+        "release_date": {
+          "type": ["string", "null"],
+          "format": "date"
+        },
+        "removed_in": {
+          "type": ["string", "null"]
+        },
+        "removed_release_date": {
+          "type": ["string", "null"],
+          "format": "date"
+        },
+        "last_supported": {
+          "type": ["string", "null"]
+        },
+        "monotonic": { "type": "boolean" },
+        "statement": {
+          "type": ["object", "null"]
+        }
+      },
+      "additionalProperties": true
+    },
+    "bcdRequirement": {
+      "type": "object",
+      "required": ["kind", "ref", "key", "selector", "evidence", "resolved"],
+      "properties": {
+        "kind": { "const": "bcd" },
+        "ref": { "type": "string", "pattern": "^bcd:" },
+        "key": { "type": "string" },
+        "selector": { "$ref": "#/$defs/selector" },
+        "spec": {
+          "type": "array",
+          "items": { "type": "string", "format": "uri" }
+        },
+        "evidence": { "$ref": "#/$defs/evidence" },
+        "resolved": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/resolution" }
+        }
+      },
+      "additionalProperties": true
+    },
+    "manualRequirement": {
+      "type": "object",
+      "required": ["kind", "ref", "id", "targets", "resolved"],
+      "properties": {
+        "kind": { "const": "manual" },
+        "ref": { "type": "string", "pattern": "^manual:" },
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "reason": { "type": "string" },
+        "targets": {
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        },
+        "source": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "resolved": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/resolution" }
+        }
+      },
+      "additionalProperties": true
+    },
+    "browserSummary": {
+      "type": "object",
+      "required": ["state", "monotonic", "blocking_requirements"],
+      "properties": {
+        "state": {
+          "enum": ["exact", "conservative", "unresolved", "unsatisfied"]
+        },
+        "declared_support_floor": {
+          "type": ["string", "null"]
+        },
+        "derived_technical_floor": {
+          "type": ["string", "null"]
+        },
+        "known_floor": {
+          "type": ["string", "null"]
+        },
+        "compatible_with_declared_floor": {
+          "type": ["boolean", "null"]
+        },
+        "monotonic": { "type": "boolean" },
+        "blocking_requirements": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}
