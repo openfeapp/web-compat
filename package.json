@@ -31,5 +31,8 @@
     "resolve": "node bin/compat-resolve.mjs",
     "sample-scan": "node scripts/sample-scanner/sample-scan.mjs",
     "test": "node --test"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }
