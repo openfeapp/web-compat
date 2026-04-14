@@ -4,9 +4,9 @@ import crypto from 'node:crypto';
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
+const packageJson = require('../package.json');
 
-export const COMPAT_CONFIG_SCHEMA_URL = 'https://raw.githubusercontent.com/openfeapp/web-compat/main/schemas/compat.config.v1.schema.json';
-
+export const COMPAT_REQUIREMENTS_SCHEMA_URL = 'https://raw.githubusercontent.com/openfeapp/web-compat/main/schemas/compat.requirements.v1.schema.json';
 export const DEFAULT_SELECTOR = Object.freeze({
   prefix: null,
   alternative_name: null,
@@ -26,23 +26,6 @@ export async function writeJsonFile(filePath, value) {
 
 export function nowIso() {
   return new Date().toISOString();
-}
-
-export function generateConfig({ targets, includeSchema = true } = {}) {
-  const config = {
-    format: 'compat-config/v1',
-    targets: { ...(targets ?? {}) },
-  };
-
-  if (Object.keys(config.targets).length === 0) {
-    throw new Error('generateConfig requires at least one browser target.');
-  }
-
-  if (includeSchema) {
-    config.$schema = COMPAT_CONFIG_SCHEMA_URL;
-  }
-
-  return config;
 }
 
 export function normalizeSelector(selector) {
@@ -69,8 +52,12 @@ export function ensureArray(value) {
   return Array.isArray(value) ? value : [value];
 }
 
-export function normalizeSpecUrls(value) {
+export function normalizeStringArray(value) {
   return ensureArray(value).filter((item) => typeof item === 'string' && item.length > 0);
+}
+
+export function normalizeSpecUrls(value) {
+  return normalizeStringArray(value);
 }
 
 export async function loadBcd(sourcePath) {
@@ -240,6 +227,288 @@ function dedupeArrayByStableHash(items) {
   return result;
 }
 
+function normalizeVersionMap(value, label) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error(`${label} must be an object mapping browser names to versions.`);
+  }
+
+  const result = {};
+  for (const [browser, version] of Object.entries(value)) {
+    const normalizedBrowser = String(browser ?? '').trim();
+    const normalizedVersion = String(version ?? '').trim();
+    if (!normalizedBrowser || !normalizedVersion) {
+      throw new Error(`${label} entries must use non-empty browser names and versions.`);
+    }
+    result[normalizedBrowser] = normalizedVersion;
+  }
+
+  return result;
+}
+
+export function parseBrowserVersionMap(rawValue, label = '--floor') {
+  const result = {};
+  for (const item of String(rawValue ?? '').split(',')) {
+    const trimmed = item.trim();
+    if (!trimmed) continue;
+    const separatorIndex = trimmed.indexOf('=');
+    const hasSingleSeparator = separatorIndex > 0 && separatorIndex === trimmed.lastIndexOf('=');
+    if (!hasSingleSeparator) {
+      throw new Error(`Invalid ${label} entry "${trimmed}". Expected browser=version.`);
+    }
+    const browser = trimmed.slice(0, separatorIndex).trim();
+    const version = trimmed.slice(separatorIndex + 1).trim();
+    if (!browser || !version) {
+      throw new Error(`Invalid ${label} entry "${trimmed}". Expected browser=version.`);
+    }
+    result[browser] = version;
+  }
+
+  if (Object.keys(result).length === 0) {
+    throw new Error(`${label} requires at least one browser=version entry.`);
+  }
+
+  return result;
+}
+
+export function parseCommaSeparatedList(rawValue) {
+  if (!rawValue) {
+    return [];
+  }
+
+  return String(rawValue)
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function normalizeEvidenceList(evidence) {
+  return ensureArray(evidence)
+    .filter((item) => item && typeof item === 'object')
+    .map((item) => ({ ...item }));
+}
+
+function normalizeBcdRequirementEntry(entry, { source, index }) {
+  const refValue = typeof entry.ref === 'string' ? entry.ref.trim() : null;
+  const keyValue = typeof entry.key === 'string' ? entry.key.trim() : null;
+  const key = keyValue ?? (refValue?.startsWith('bcd:') ? refValue.slice(4) : null);
+  if (!key) {
+    throw new Error(`${source} requirements[${index}] must declare a BCD key.`);
+  }
+
+  const ref = refValue ?? makeBcdRef(key);
+  if (ref !== makeBcdRef(key)) {
+    throw new Error(`${source} requirements[${index}] ref must match key ${makeBcdRef(key)}.`);
+  }
+
+  return {
+    kind: 'bcd',
+    ref,
+    key,
+    selector: normalizeSelector(entry.selector),
+    evidence: normalizeEvidenceList(entry.evidence),
+  };
+}
+
+function normalizeManualRequirementEntry(entry, { source, index }) {
+  const refValue = typeof entry.ref === 'string' ? entry.ref.trim() : null;
+  const idValue = typeof entry.id === 'string' ? entry.id.trim() : null;
+  const id = idValue ?? (refValue?.startsWith('manual:') ? refValue.slice(7) : null);
+  if (!id) {
+    throw new Error(`${source} requirements[${index}] manual entries must declare an id.`);
+  }
+
+  const ref = refValue ?? makeManualRef(id);
+  if (ref !== makeManualRef(id)) {
+    throw new Error(`${source} requirements[${index}] ref must match id ${makeManualRef(id)}.`);
+  }
+
+  const support = normalizeVersionMap(entry.support ?? {}, `${source} requirements[${index}] support`);
+  if (Object.keys(support).length === 0) {
+    throw new Error(`${source} requirements[${index}] support must contain at least one browser version.`);
+  }
+
+  return {
+    kind: 'manual',
+    ref,
+    id,
+    title: typeof entry.title === 'string' ? entry.title : undefined,
+    reason: typeof entry.reason === 'string' ? entry.reason : undefined,
+    support,
+    source: normalizeStringArray(entry.source),
+  };
+}
+
+function normalizeRequirementEntry(entry, context) {
+  if (typeof entry === 'string') {
+    const trimmed = entry.trim();
+    if (!trimmed) {
+      throw new Error(`${context.source} requirements[${context.index}] string shorthand must be non-empty.`);
+    }
+    if (trimmed.startsWith('bcd:')) {
+      return {
+        kind: 'bcd',
+        ref: trimmed,
+        key: trimmed.slice(4),
+        selector: { ...DEFAULT_SELECTOR },
+        evidence: [],
+      };
+    }
+    throw new Error(`${context.source} requirements[${context.index}] string shorthand must use an explicit supported ref like bcd:api.IDBFactory.open.`);
+  }
+
+  if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
+    throw new Error(`${context.source} requirements[${context.index}] must be an object or explicit ref string.`);
+  }
+
+  if (entry.kind === 'bcd') {
+    return normalizeBcdRequirementEntry(entry, context);
+  }
+
+  if (entry.kind === 'manual') {
+    return normalizeManualRequirementEntry(entry, context);
+  }
+
+  throw new Error(`${context.source} requirements[${context.index}] has unsupported kind ${JSON.stringify(entry.kind)}.`);
+}
+
+function mergeManualRequirement(existing, next) {
+  const existingShape = stableHash({
+    kind: existing.kind,
+    ref: existing.ref,
+    id: existing.id,
+    title: existing.title ?? null,
+    reason: existing.reason ?? null,
+    support: existing.support,
+  });
+  const nextShape = stableHash({
+    kind: next.kind,
+    ref: next.ref,
+    id: next.id,
+    title: next.title ?? null,
+    reason: next.reason ?? null,
+    support: next.support,
+  });
+
+  if (existingShape !== nextShape) {
+    throw new Error(`Conflicting manual requirement definitions for ${existing.ref}.`);
+  }
+
+  existing.source = dedupeArrayByStableHash([...existing.source, ...next.source]);
+}
+
+export function mergeRequirements(requirements) {
+  const groups = new Map();
+
+  for (const requirement of requirements ?? []) {
+    if (!requirement || typeof requirement !== 'object') {
+      continue;
+    }
+
+    if (requirement.kind === 'bcd' && requirement.key) {
+      const selector = normalizeSelector(requirement.selector);
+      const groupKey = stableHash({ kind: 'bcd', ref: makeBcdRef(requirement.key), selector });
+      let group = groups.get(groupKey);
+      if (!group) {
+        group = {
+          kind: 'bcd',
+          ref: makeBcdRef(requirement.key),
+          key: requirement.key,
+          selector,
+          evidence: [],
+        };
+        groups.set(groupKey, group);
+      }
+      group.evidence.push(...normalizeEvidenceList(requirement.evidence));
+      continue;
+    }
+
+    if (requirement.kind === 'manual' && requirement.id) {
+      const ref = makeManualRef(requirement.id);
+      const groupKey = stableHash({ kind: 'manual', ref });
+      let group = groups.get(groupKey);
+      const normalized = {
+        kind: 'manual',
+        ref,
+        id: requirement.id,
+        title: requirement.title,
+        reason: requirement.reason,
+        support: normalizeVersionMap(requirement.support ?? {}, `${ref} support`),
+        source: normalizeStringArray(requirement.source),
+      };
+      if (!group) {
+        groups.set(groupKey, normalized);
+      } else {
+        mergeManualRequirement(group, normalized);
+      }
+    }
+  }
+
+  const merged = [...groups.values()].map((requirement) => {
+    if (requirement.kind === 'bcd') {
+      return {
+        ...requirement,
+        evidence: dedupeArrayByStableHash(requirement.evidence),
+      };
+    }
+    return {
+      ...requirement,
+      source: dedupeArrayByStableHash(requirement.source),
+    };
+  });
+
+  merged.sort((left, right) => left.ref.localeCompare(right.ref));
+  return merged;
+}
+
+export function normalizeRequirementsArtifact(input, { source = '<input>' } = {}) {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) {
+    throw new Error(`${source} must be a compat-requirements/v1 object.`);
+  }
+
+  if (input.format !== 'compat-requirements/v1') {
+    throw new Error(`${source} must declare format "compat-requirements/v1".`);
+  }
+
+  if (!Array.isArray(input.requirements)) {
+    throw new Error(`${source} must contain a requirements array.`);
+  }
+
+  return mergeRequirements(
+    input.requirements.map((entry, index) => normalizeRequirementEntry(entry, { source, index })),
+  );
+}
+
+export function normalizeRequirementsInput(input, { source = '<input>' } = {}) {
+  if (input === null || input === undefined) {
+    return [];
+  }
+
+  if (Array.isArray(input)) {
+    return mergeRequirements(
+      input.map((entry, index) => normalizeRequirementEntry(entry, { source, index })),
+    );
+  }
+
+  if (typeof input === 'object' && !Array.isArray(input)) {
+    return normalizeRequirementsArtifact(input, { source });
+  }
+
+  throw new Error(`${source} must be a compat-requirements/v1 document or an array of requirement entries.`);
+}
+
+export async function loadRequirementsFile(filePath) {
+  const document = await readJsonFile(filePath);
+  return normalizeRequirementsArtifact(document, { source: filePath });
+}
+
+export async function loadRequirementsFiles(filePaths) {
+  const loaded = [];
+  for (const filePath of filePaths) {
+    loaded.push(...await loadRequirementsFile(filePath));
+  }
+  return mergeRequirements(loaded);
+}
+
 export function aggregateFindings(findings) {
   const groups = new Map();
 
@@ -262,7 +531,7 @@ export function aggregateFindings(findings) {
       groups.set(groupKey, group);
     }
 
-    group.evidence.push(...ensureArray(finding.evidence));
+    group.evidence.push(...normalizeEvidenceList(finding.evidence));
   }
 
   const aggregated = [...groups.values()].map((item) => ({
@@ -412,7 +681,48 @@ export function resolveBcdRequirement(requirement, browser, bcd) {
   return { ...base, state: 'unknown', reason: 'unrecognized-version-added' };
 }
 
-function buildBcdRequirementLockEntry(requirement, config, bcd) {
+function resolveManualRequirement(requirement, browser) {
+  const rawValue = requirement.support?.[browser] ?? null;
+  if (!rawValue) {
+    return {
+      state: 'unknown',
+      reason: 'manual-support-omitted',
+      from: null,
+      release_date: null,
+      removed_in: null,
+      removed_release_date: null,
+      last_supported: null,
+      monotonic: true,
+      statement: null,
+    };
+  }
+
+  const versionAdded = String(rawValue);
+  const from = versionAdded.startsWith('≤') ? versionAdded.slice(1) : versionAdded;
+  return {
+    state: versionAdded.startsWith('≤') ? 'conservative' : 'exact',
+    reason: 'manual',
+    from,
+    release_date: null,
+    removed_in: null,
+    removed_release_date: null,
+    last_supported: null,
+    monotonic: true,
+    statement: {
+      version_added: versionAdded,
+      manual: true,
+    },
+  };
+}
+
+function resolveRequirement(requirement, browser, bcd) {
+  if (requirement.kind === 'manual') {
+    return resolveManualRequirement(requirement, browser);
+  }
+  return resolveBcdRequirement(requirement, browser, bcd);
+}
+
+function buildBcdRequirementLockEntry(requirement, browsers, bcd) {
   const compat = getCompatEntryByKey(bcd, requirement.key);
   const entry = {
     kind: 'bcd',
@@ -430,61 +740,66 @@ function buildBcdRequirementLockEntry(requirement, config, bcd) {
     }
   }
 
-  for (const browser of Object.keys(config.targets ?? {})) {
+  for (const browser of browsers) {
     entry.resolved[browser] = resolveBcdRequirement(requirement, browser, bcd);
   }
 
   return entry;
 }
 
-function buildManualRequirementLockEntry(manualRequirement, config) {
+function buildManualRequirementLockEntry(requirement, browsers) {
   const entry = {
     kind: 'manual',
-    ref: makeManualRef(manualRequirement.id),
-    id: manualRequirement.id,
-    title: manualRequirement.title,
-    reason: manualRequirement.reason,
-    targets: { ...(manualRequirement.targets ?? {}) },
-    source: ensureArray(manualRequirement.source),
+    ref: requirement.ref,
+    id: requirement.id,
+    title: requirement.title,
+    reason: requirement.reason,
+    support: { ...requirement.support },
+    source: normalizeStringArray(requirement.source),
     resolved: {},
   };
 
-  for (const browser of Object.keys(config.targets ?? {})) {
-    const from = manualRequirement.targets?.[browser] ?? null;
-    if (from) {
-      entry.resolved[browser] = {
-        state: 'exact',
-        reason: 'manual',
-        from,
-        release_date: null,
-        removed_in: null,
-        removed_release_date: null,
-        last_supported: null,
-        monotonic: true,
-        statement: {
-          version_added: from,
-          manual: true,
-        },
-      };
-    } else {
-      entry.resolved[browser] = {
-        state: 'unknown',
-        reason: 'manual-target-omitted',
-        from: null,
-        release_date: null,
-        removed_in: null,
-        removed_release_date: null,
-        last_supported: null,
-        monotonic: true,
-        statement: null,
-      };
-    }
+  for (const browser of browsers) {
+    entry.resolved[browser] = resolveManualRequirement(requirement, browser);
   }
 
   return entry;
 }
 
-function summarizeBrowser(requirements, browser, declaredSupportFloor, bcd) {
+function buildRequirementLockEntry(requirement, browsers, bcd) {
+  if (requirement.kind === 'manual') {
+    return buildManualRequirementLockEntry(requirement, browsers);
+  }
+  return buildBcdRequirementLockEntry(requirement, browsers, bcd);
+}
+
+function resolvedRequirementEntries(requirements, browsers, bcd) {
+  return requirements
+    .map((requirement) => buildRequirementLockEntry(requirement, browsers, bcd))
+    .sort((left, right) => left.ref.localeCompare(right.ref));
+}
+
+function isResolvedSupportedAtVersion(resolved, browser, version, bcd) {
+  if (!version || !resolved.from) {
+    return false;
+  }
+
+  if (resolved.state === 'unsupported' || resolved.state === 'unknown') {
+    return false;
+  }
+
+  if (compareVersions(bcd, browser, resolved.from, version) > 0) {
+    return false;
+  }
+
+  if (resolved.removed_in && compareVersions(bcd, browser, resolved.removed_in, version) <= 0) {
+    return false;
+  }
+
+  return true;
+}
+
+function summarizeBrowser(requirements, browser, floorVersion, bcd) {
   const perRequirement = requirements.map((requirement) => ({
     ref: requirement.ref,
     ...(requirement.resolved?.[browser] ?? {
@@ -508,59 +823,100 @@ function summarizeBrowser(requirements, browser, declaredSupportFloor, bcd) {
   const monotonic = perRequirement.every((item) => item.monotonic !== false);
 
   let state;
-  let derivedTechnicalFloor = null;
-  let compatibleWithDeclaredFloor = null;
+  let derivedFloor = null;
+  let compatibleWithFloor = null;
   let blockingRequirements = [];
 
   if (unsupported.length > 0) {
     state = 'unsatisfied';
-    compatibleWithDeclaredFloor = false;
+    compatibleWithFloor = floorVersion ? false : null;
     blockingRequirements = unsupported.map((item) => item.ref).sort();
   } else if (unknown.length > 0) {
     state = 'unresolved';
     blockingRequirements = unknown.map((item) => item.ref).sort();
   } else if (conservative.length > 0) {
     state = 'conservative';
-    derivedTechnicalFloor = knownFloor;
-    if (declaredSupportFloor && derivedTechnicalFloor) {
-      compatibleWithDeclaredFloor = compareVersions(bcd, browser, derivedTechnicalFloor, declaredSupportFloor) <= 0
+    derivedFloor = knownFloor;
+    if (floorVersion && derivedFloor) {
+      compatibleWithFloor = compareVersions(bcd, browser, derivedFloor, floorVersion) <= 0
         ? true
         : null;
     }
     blockingRequirements = perRequirement
-      .filter((item) => item.from && item.from === derivedTechnicalFloor)
+      .filter((item) => item.from && item.from === derivedFloor)
       .map((item) => item.ref)
       .sort();
   } else {
     state = 'exact';
-    derivedTechnicalFloor = knownFloor;
-    if (declaredSupportFloor) {
-      compatibleWithDeclaredFloor = derivedTechnicalFloor === null
+    derivedFloor = knownFloor;
+    if (floorVersion) {
+      compatibleWithFloor = derivedFloor === null
         ? true
-        : compareVersions(bcd, browser, derivedTechnicalFloor, declaredSupportFloor) <= 0;
+        : compareVersions(bcd, browser, derivedFloor, floorVersion) <= 0;
     }
     blockingRequirements = perRequirement
-      .filter((item) => item.from && item.from === derivedTechnicalFloor)
+      .filter((item) => item.from && item.from === derivedFloor)
       .map((item) => item.ref)
       .sort();
   }
 
   return {
     state,
-    declared_support_floor: declaredSupportFloor ?? null,
-    derived_technical_floor: derivedTechnicalFloor,
+    floor: floorVersion ?? null,
+    derived_floor: derivedFloor,
     known_floor: knownFloor,
-    compatible_with_declared_floor: compatibleWithDeclaredFloor,
+    compatible_with_floor: compatibleWithFloor,
     monotonic,
     blocking_requirements: blockingRequirements,
     requirements: perRequirement,
   };
 }
 
-export function summarizeLock(requirements, targets, bcd) {
+function collectBrowsers({ bcd, floor, requirements }) {
+  const browsers = new Set([
+    ...Object.keys(bcd?.browsers ?? {}),
+    ...Object.keys(floor ?? {}),
+  ]);
+
+  for (const requirement of requirements ?? []) {
+    if (requirement.kind === 'manual') {
+      for (const browser of Object.keys(requirement.support ?? {})) {
+        browsers.add(browser);
+      }
+    }
+  }
+
+  return [...browsers].sort((left, right) => left.localeCompare(right));
+}
+
+function deriveIntersectionFloorByBrowser(floorRequirementEntries, browsers, bcd) {
+  const result = {};
+  for (const browser of browsers) {
+    const summary = summarizeBrowser(floorRequirementEntries, browser, null, bcd);
+    result[browser] = summary.derived_floor;
+  }
+  return result;
+}
+
+function isRequirementInBaselineIntersection(requirement, baselineByBrowser, browsers, bcd) {
+  if (browsers.length === 0) {
+    return false;
+  }
+
+  return browsers.every((browser) => {
+    const baseline = baselineByBrowser[browser] ?? null;
+    if (!baseline) {
+      return false;
+    }
+    const resolved = resolveRequirement(requirement, browser, bcd);
+    return isResolvedSupportedAtVersion(resolved, browser, baseline, bcd);
+  });
+}
+
+export function summarizeLock(requirements, floor, bcd, browsers = collectBrowsers({ bcd, floor, requirements })) {
   const byBrowser = {};
-  for (const [browser, declaredSupportFloor] of Object.entries(targets ?? {})) {
-    byBrowser[browser] = summarizeBrowser(requirements, browser, declaredSupportFloor, bcd);
+  for (const browser of browsers) {
+    byBrowser[browser] = summarizeBrowser(requirements, browser, floor?.[browser] ?? null, bcd);
   }
   return { by_browser: byBrowser };
 }
@@ -572,41 +928,85 @@ export function inferDatasetMeta(dataset) {
   };
 }
 
-export function generateLock({ config, findings, bcd }) {
+export function generateLock({
+  floor,
+  findings,
+  additionalRequirements = [],
+  floorRequirements = [],
+  bcd,
+}) {
+  const normalizedFloor = normalizeVersionMap(floor ?? {}, '--floor');
+  if (Object.keys(normalizedFloor).length === 0) {
+    throw new Error('generateLock requires at least one browser floor.');
+  }
+
   const aggregatedFindings = aggregateFindings(findings?.findings ?? findings ?? []);
-  const requirements = [];
+  const normalizedAdditionalRequirements = normalizeRequirementsInput(additionalRequirements, {
+    source: 'additionalRequirements',
+  });
+  const normalizedFloorRequirements = normalizeRequirementsInput(floorRequirements, {
+    source: 'floorRequirements',
+  });
 
-  for (const requirement of aggregatedFindings) {
-    requirements.push(buildBcdRequirementLockEntry(requirement, config, bcd));
-  }
+  const effectiveRequirements = mergeRequirements([
+    ...aggregatedFindings,
+    ...normalizedAdditionalRequirements,
+  ]);
 
-  for (const manualRequirement of ensureArray(config.manual_requirements)) {
-    requirements.push(buildManualRequirementLockEntry(manualRequirement, config));
-  }
+  const browsers = collectBrowsers({
+    bcd,
+    floor: normalizedFloor,
+    requirements: [...effectiveRequirements, ...normalizedFloorRequirements],
+  });
+  const floorRequirementEntries = resolvedRequirementEntries(normalizedFloorRequirements, browsers, bcd);
+  const baselineByBrowser = deriveIntersectionFloorByBrowser(floorRequirementEntries, browsers, bcd);
 
-  requirements.sort((left, right) => left.ref.localeCompare(right.ref));
+  const keptRequirements = effectiveRequirements.filter((requirement) => (
+    !isRequirementInBaselineIntersection(requirement, baselineByBrowser, browsers, bcd)
+  ));
+  const requirementEntries = resolvedRequirementEntries(keptRequirements, browsers, bcd);
+  const combinedRequirements = [...floorRequirementEntries, ...requirementEntries];
 
   return {
     format: 'compat-lock/v1',
     generated_at: nowIso(),
     tool: {
-      generator: 'compat-generate-lock/1.0.0',
+      generator: `compat-generate-lock/${packageJson.version}`,
       scanner: findings?.tool?.scanner ?? null,
       registry: findings?.tool?.registry ?? null,
       datasets: {
         bcd: inferDatasetMeta(bcd),
       },
     },
-    targets: { ...(config.targets ?? {}) },
-    requirements,
-    summary: summarizeLock(requirements, config.targets ?? {}, bcd),
+    floor: { ...normalizedFloor },
+    floor_requirements: floorRequirementEntries,
+    requirements: requirementEntries,
+    summary: summarizeLock(combinedRequirements, normalizedFloor, bcd, browsers),
+  };
+}
+
+function toReplayResolution(requirement, browser) {
+  return requirement.resolved?.[browser] ?? {
+    state: 'unknown',
+    reason: 'missing-browser-entry',
+    from: null,
+    release_date: null,
+    removed_in: null,
+    removed_release_date: null,
+    last_supported: null,
+    monotonic: true,
+    statement: null,
   };
 }
 
 export function resolveLockForBrowser(lock, browser, mode, bcd = null) {
+  const lockRequirements = [
+    ...ensureArray(lock.floor_requirements),
+    ...ensureArray(lock.requirements),
+  ];
   const requirements = [];
 
-  for (const requirement of lock.requirements ?? []) {
+  for (const requirement of lockRequirements) {
     if (mode === 'recompute' && requirement.kind === 'bcd') {
       if (!bcd) {
         throw new Error('Recompute mode requires BCD data.');
@@ -616,37 +1016,26 @@ export function resolveLockForBrowser(lock, browser, mode, bcd = null) {
       continue;
     }
 
-    const replayed = requirement.resolved?.[browser] ?? {
-      state: 'unknown',
-      reason: 'missing-browser-entry',
-      from: null,
-      release_date: null,
-      removed_in: null,
-      removed_release_date: null,
-      last_supported: null,
-      monotonic: true,
-      statement: null,
-    };
-    requirements.push({ ref: requirement.ref, ...replayed });
+    if (mode === 'recompute' && requirement.kind === 'manual') {
+      requirements.push({ ref: requirement.ref, ...resolveManualRequirement(requirement, browser) });
+      continue;
+    }
+
+    requirements.push({ ref: requirement.ref, ...toReplayResolution(requirement, browser) });
   }
 
-  const summary = summarizeBrowser(
-    lock.requirements ?? [],
-    browser,
-    lock.targets?.[browser] ?? null,
-    bcd ?? {
-      browsers: {},
-    },
-  );
-
+  const floorVersion = lock.floor?.[browser] ?? null;
+  let summary;
   if (mode === 'recompute' && bcd) {
-    const fakeRequirements = (lock.requirements ?? []).map((requirement) => ({
+    const recomputedRequirements = lockRequirements.map((requirement) => ({
       ref: requirement.ref,
       resolved: {
         [browser]: requirements.find((item) => item.ref === requirement.ref),
       },
     }));
-    Object.assign(summary, summarizeBrowser(fakeRequirements, browser, lock.targets?.[browser] ?? null, bcd));
+    summary = summarizeBrowser(recomputedRequirements, browser, floorVersion, bcd);
+  } else {
+    summary = summarizeBrowser(lockRequirements, browser, floorVersion, bcd ?? { browsers: {} });
   }
 
   return {
@@ -654,10 +1043,10 @@ export function resolveLockForBrowser(lock, browser, mode, bcd = null) {
     browser,
     mode,
     state: summary.state,
-    declared_support_floor: summary.declared_support_floor,
-    derived_technical_floor: summary.derived_technical_floor,
+    floor: summary.floor,
+    derived_floor: summary.derived_floor,
     known_floor: summary.known_floor,
-    compatible_with_declared_floor: summary.compatible_with_declared_floor,
+    compatible_with_floor: summary.compatible_with_floor,
     monotonic: summary.monotonic,
     blocking_requirements: summary.blocking_requirements,
     requirements,

@@ -3,10 +3,10 @@
   "browser": "chrome",
   "mode": "recompute",
   "state": "exact",
-  "declared_support_floor": "120",
-  "derived_technical_floor": "114",
+  "floor": "120",
+  "derived_floor": "114",
   "known_floor": "114",
-  "compatible_with_declared_floor": true,
+  "compatible_with_floor": true,
   "monotonic": true,
   "blocking_requirements": [
     "bcd:css.properties.text-wrap"

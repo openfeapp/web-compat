@@ -1,14 +1,16 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { execFile as execFileCallback } from 'node:child_process';
+import fs from 'node:fs/promises';
+import os from 'node:os';
 import path from 'node:path';
+import { execFile as execFileCallback } from 'node:child_process';
 import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import {
-  COMPAT_CONFIG_SCHEMA_URL,
-  generateConfig,
+  COMPAT_REQUIREMENTS_SCHEMA_URL,
+  normalizeRequirementsArtifact,
   readJsonFile,
-  loadBcd,
+  writeJsonFile,
   generateLock,
   resolveLockForBrowser,
   resolveBcdRequirement,
@@ -39,40 +41,188 @@ async function runCli(relativePath, args = []) {
   }
 }
 
-async function loadExampleCoreInputs() {
-  const config = await readJsonFile(path.join(projectRoot, 'examples/compat.config.json'));
-  const findings = await readJsonFile(path.join(projectRoot, 'examples/out.findings.json'));
-  const bcd = await loadBcd(path.join(projectRoot, 'examples/bcd.fixture.json'));
-  return { config, findings, bcd };
+async function makeTempDir(prefix = 'web-compat-') {
+  return fs.mkdtemp(path.join(os.tmpdir(), prefix));
 }
 
 async function loadSampleScannerInputs() {
-  const config = await readJsonFile(path.join(projectRoot, 'examples/sample-scanner.config.json'));
-  const registry = await readJsonFile(path.join(projectRoot, 'examples/sample-scanner.registry.json'));
+  const config = await readJsonFile(path.join(projectRoot, 'examples/sample-scanner/config.json'));
+  const registry = await readJsonFile(path.join(projectRoot, 'examples/sample-scanner/registry.json'));
   return { config, registry };
 }
 
-test('config generator builds a starter compat-config document', () => {
-  const config = generateConfig({
-    targets: {
-      chrome: '120',
-      firefox: '115',
+function makeFixtureBcd() {
+  return {
+    __meta: {
+      version: 'fixture-2026.04.14',
+      timestamp: '2026-04-14T00:00:00.000Z',
     },
-  });
+    browsers: {
+      chrome: {
+        releases: {
+          '23': { release_date: '2012-11-06' },
+          '37': { release_date: '2014-08-26' },
+          '61': { release_date: '2017-09-05' },
+          '104': { release_date: '2022-08-02' },
+          '114': { release_date: '2023-05-30' },
+          '120': { release_date: '2023-12-05' },
+        },
+      },
+      firefox: {
+        releases: {
+          '44': { release_date: '2016-01-26' },
+          '94': { release_date: '2021-11-02' },
+          '98': { release_date: '2022-03-08' },
+          '115': { release_date: '2023-07-04' },
+          '122': { release_date: '2024-01-23' },
+        },
+      },
+      safari: {
+        releases: {
+          '10.1': { release_date: '2017-03-27' },
+          '12.1': { release_date: '2019-03-25' },
+          '15.4': { release_date: '2022-03-14' },
+          '17.0': { release_date: '2023-09-18' },
+        },
+      },
+    },
+    api: {
+      IDBFactory: {
+        open: {
+          __compat: {
+            support: {
+              chrome: { version_added: '23' },
+              firefox: { version_added: '44' },
+              safari: { version_added: '10.1' },
+            },
+            status: { experimental: false, standard_track: true, deprecated: false },
+          },
+        },
+      },
+      Navigator: {
+        share: {
+          __compat: {
+            support: {
+              chrome: { version_added: '61' },
+              firefox: { version_added: '115' },
+              safari: { version_added: '12.1' },
+            },
+            status: { experimental: false, standard_track: true, deprecated: false },
+          },
+        },
+      },
+    },
+    css: {
+      properties: {
+        'text-wrap': {
+          __compat: {
+            support: {
+              chrome: { version_added: '114' },
+              firefox: { version_added: '122' },
+              safari: { version_added: '17.0' },
+            },
+            status: { experimental: false, standard_track: true, deprecated: false },
+          },
+        },
+      },
+    },
+    html: {
+      elements: {
+        dialog: {
+          __compat: {
+            support: {
+              chrome: { version_added: '37' },
+              firefox: { version_added: '98' },
+              safari: { version_added: '15.4' },
+            },
+            status: { experimental: false, standard_track: true, deprecated: false },
+          },
+        },
+      },
+    },
+  };
+}
 
-  assert.deepEqual(config, {
-    $schema: COMPAT_CONFIG_SCHEMA_URL,
-    format: 'compat-config/v1',
-    targets: {
-      chrome: '120',
-      firefox: '115',
+function makeFindings() {
+  return {
+    format: 'compat-findings/v1',
+    generated_at: '2026-04-14T00:00:00.000Z',
+    tool: {
+      scanner: 'sample-scanner/1.0.0',
+      registry: 'sample-scanner-registry/1',
     },
-  });
-});
+    findings: [
+      {
+        kind: 'bcd',
+        ref: 'bcd:api.IDBFactory.open',
+        key: 'api.IDBFactory.open',
+        selector: {
+          prefix: null,
+          alternative_name: null,
+          allow_flags: false,
+          allow_partial_implementation: false,
+        },
+        evidence: [{ path: 'app.js', rule: 'sample/indexeddb' }],
+      },
+      {
+        kind: 'bcd',
+        ref: 'bcd:api.Navigator.share',
+        key: 'api.Navigator.share',
+        selector: {
+          prefix: null,
+          alternative_name: null,
+          allow_flags: false,
+          allow_partial_implementation: false,
+        },
+        evidence: [{ path: 'app.js', rule: 'sample/share' }],
+      },
+      {
+        kind: 'bcd',
+        ref: 'bcd:css.properties.text-wrap',
+        key: 'css.properties.text-wrap',
+        selector: {
+          prefix: null,
+          alternative_name: null,
+          allow_flags: false,
+          allow_partial_implementation: false,
+        },
+        evidence: [{ path: 'app.css', rule: 'sample/text-wrap' }],
+      },
+      {
+        kind: 'bcd',
+        ref: 'bcd:html.elements.dialog',
+        key: 'html.elements.dialog',
+        selector: {
+          prefix: null,
+          alternative_name: null,
+          allow_flags: false,
+          allow_partial_implementation: false,
+        },
+        evidence: [{ path: 'index.html', rule: 'sample/dialog' }],
+      },
+    ],
+  };
+}
+
+function makeAdditionalRequirements() {
+  return [{
+    kind: 'manual',
+    id: 'behavior.structured-clone.transfer',
+    title: 'Structured clone with transfer support',
+    reason: 'Application depends on a semantic boundary not represented by a single BCD key.',
+    support: {
+      chrome: '104',
+      firefox: '94',
+      safari: '15.4',
+    },
+    source: [
+      'https://html.spec.whatwg.org/multipage/structured-data.html#structuredserializewithtransfer',
+    ],
+  }];
+}
 
 test('public CLIs support --help', async () => {
   for (const relativePath of [
-    'bin/compat-generate-config.mjs',
     'bin/compat-generate-lock.mjs',
     'bin/compat-resolve.mjs',
   ]) {
@@ -84,7 +234,6 @@ test('public CLIs support --help', async () => {
 
 test('public CLIs support -h', async () => {
   for (const relativePath of [
-    'bin/compat-generate-config.mjs',
     'bin/compat-generate-lock.mjs',
     'bin/compat-resolve.mjs',
   ]) {
@@ -96,7 +245,6 @@ test('public CLIs support -h', async () => {
 
 test('public CLIs print usage on no-arg invocation', async () => {
   for (const relativePath of [
-    'bin/compat-generate-config.mjs',
     'bin/compat-generate-lock.mjs',
     'bin/compat-resolve.mjs',
   ]) {
@@ -106,27 +254,42 @@ test('public CLIs print usage on no-arg invocation', async () => {
   }
 });
 
-test('compat-generate-config requires --target', async () => {
-  const result = await runCli('bin/compat-generate-config.mjs', ['--out', 'tmp.json']);
+test('compat-generate-lock requires --floor', async () => {
+  const result = await runCli('bin/compat-generate-lock.mjs', [
+    '--findings',
+    'examples/compat.findings.json',
+    '--out',
+    'tmp.lock.json',
+  ]);
   assert.equal(result.code, 1);
-  assert.match(result.stderr, /Missing required argument --target/);
+  assert.match(result.stderr, /Missing required argument --floor/);
   assert.match(result.stderr, /Usage:/);
 });
 
-test('compat-generate-config emits starter config JSON', async () => {
-  const result = await runCli('bin/compat-generate-config.mjs', [
-    '--target',
-    'chrome=120,firefox=115',
-  ]);
-  assert.equal(result.code, 0);
+test('compat-requirements normalization supports explicit bcd refs and manual support maps', () => {
+  const requirements = normalizeRequirementsArtifact({
+    $schema: COMPAT_REQUIREMENTS_SCHEMA_URL,
+    format: 'compat-requirements/v1',
+    requirements: [
+      'bcd:api.IDBFactory.open',
+      {
+        kind: 'manual',
+        id: 'behavior.structured-clone.transfer',
+        support: {
+          chrome: '104',
+        },
+        source: [
+          'https://html.spec.whatwg.org/multipage/structured-data.html#structuredserializewithtransfer',
+        ],
+      },
+    ],
+  }, { source: 'inline.requirements.json' });
 
-  const config = JSON.parse(result.stdout);
-  assert.equal(config.$schema, COMPAT_CONFIG_SCHEMA_URL);
-  assert.equal(config.format, 'compat-config/v1');
-  assert.deepEqual(config.targets, {
-    chrome: '120',
-    firefox: '115',
-  });
+  assert.deepEqual(requirements.map((item) => item.ref), [
+    'bcd:api.IDBFactory.open',
+    'manual:behavior.structured-clone.transfer',
+  ]);
+  assert.equal(requirements[1].support.chrome, '104');
 });
 
 test('sample scanner finds the expected BCD requirements', async () => {
@@ -142,37 +305,188 @@ test('sample scanner finds the expected BCD requirements', async () => {
   ]);
 });
 
-test('core config stays scanner-agnostic', async () => {
-  const { config } = await loadExampleCoreInputs();
-  assert.equal('scan' in config, false);
-});
+test('lock generation allows no floor requirements and keeps the full effective app requirement set', () => {
+  const lock = generateLock({
+    floor: {
+      chrome: '120',
+      firefox: '115',
+    },
+    findings: makeFindings(),
+    additionalRequirements: makeAdditionalRequirements(),
+    floorRequirements: [],
+    bcd: makeFixtureBcd(),
+  });
 
-test('lock generation computes the expected exact Chrome floor', async () => {
-  const { config, findings, bcd } = await loadExampleCoreInputs();
-  const lock = generateLock({ config, findings, bcd });
-  const summary = lock.summary.by_browser.chrome;
-  assert.equal(summary.state, 'exact');
-  assert.equal(summary.derived_technical_floor, '114');
-  assert.equal(summary.compatible_with_declared_floor, true);
-  assert.deepEqual(summary.blocking_requirements, [makeBcdRef('css.properties.text-wrap')]);
+  assert.deepEqual(lock.floor, {
+    chrome: '120',
+    firefox: '115',
+  });
+  assert.deepEqual(lock.floor_requirements, []);
+  assert.deepEqual(lock.requirements.map((item) => item.ref), [
+    'bcd:api.IDBFactory.open',
+    'bcd:api.Navigator.share',
+    'bcd:css.properties.text-wrap',
+    'bcd:html.elements.dialog',
+    'manual:behavior.structured-clone.transfer',
+  ]);
+  assert.equal(lock.summary.by_browser.chrome.state, 'exact');
+  assert.equal(lock.summary.by_browser.chrome.derived_floor, '114');
+  assert.equal(lock.summary.by_browser.chrome.compatible_with_floor, true);
+  assert.equal(lock.summary.by_browser.firefox.derived_floor, '122');
+  assert.equal(lock.summary.by_browser.firefox.compatible_with_floor, false);
   assert.deepEqual(lock.tool.datasets, {
     bcd: {
-      version: 'fixture-2026.04.13',
-      timestamp: '2026-04-13T00:00:00.000Z',
+      version: 'fixture-2026.04.14',
+      timestamp: '2026-04-14T00:00:00.000Z',
     },
   });
-  assert.equal('aliases' in lock.requirements[0], false);
 });
 
-test('resolver can replay and recompute the same answer', async () => {
-  const { config, findings, bcd } = await loadExampleCoreInputs();
-  const lock = generateLock({ config, findings, bcd });
-  const replay = resolveLockForBrowser(lock, 'chrome', 'replay');
-  const recompute = resolveLockForBrowser(lock, 'chrome', 'recompute', bcd);
+test('compat-generate-lock omits floor requirements cleanly when the flag is not passed', async () => {
+  const dir = await makeTempDir();
+  const findingsPath = path.join(dir, 'findings.json');
+  const bcdPath = path.join(dir, 'bcd.json');
+  const additionalPath = path.join(dir, 'additional.requirements.json');
+  const outPath = path.join(dir, 'compat.lock.json');
+
+  await writeJsonFile(findingsPath, makeFindings());
+  await writeJsonFile(bcdPath, makeFixtureBcd());
+  await writeJsonFile(additionalPath, {
+    $schema: COMPAT_REQUIREMENTS_SCHEMA_URL,
+    format: 'compat-requirements/v1',
+    requirements: makeAdditionalRequirements(),
+  });
+
+  const result = await runCli('bin/compat-generate-lock.mjs', [
+    '--findings',
+    findingsPath,
+    '--floor',
+    'chrome=120,firefox=115',
+    '--additional-requirements',
+    additionalPath,
+    '--bcd',
+    bcdPath,
+    '--out',
+    outPath,
+  ]);
+
+  assert.equal(result.code, 0);
+  const lock = await readJsonFile(outPath);
+  assert.deepEqual(lock.floor_requirements, []);
+  assert.deepEqual(lock.requirements.map((item) => item.ref), [
+    'bcd:api.IDBFactory.open',
+    'bcd:api.Navigator.share',
+    'bcd:css.properties.text-wrap',
+    'bcd:html.elements.dialog',
+    'manual:behavior.structured-clone.transfer',
+  ]);
+});
+
+test('lock generation omits app requirements already covered by explicit floor requirements', () => {
+  const lock = generateLock({
+    floor: {
+      chrome: '120',
+      firefox: '115',
+    },
+    findings: makeFindings(),
+    additionalRequirements: makeAdditionalRequirements(),
+    floorRequirements: ['bcd:api.IDBFactory.open'],
+    bcd: makeFixtureBcd(),
+  });
+
+  assert.deepEqual(lock.floor_requirements.map((item) => item.ref), ['bcd:api.IDBFactory.open']);
+  assert.deepEqual(lock.requirements.map((item) => item.ref), [
+    'bcd:api.Navigator.share',
+    'bcd:css.properties.text-wrap',
+    'bcd:html.elements.dialog',
+    'manual:behavior.structured-clone.transfer',
+  ]);
+});
+
+test('lock generation preserves all browsers from the BCD dataset for replay and recompute', () => {
+  const bcd = makeFixtureBcd();
+  const lock = generateLock({
+    floor: {
+      chrome: '120',
+      firefox: '115',
+    },
+    findings: makeFindings(),
+    additionalRequirements: makeAdditionalRequirements(),
+    floorRequirements: ['bcd:api.IDBFactory.open'],
+    bcd,
+  });
+
+  assert.deepEqual(Object.keys(lock.summary.by_browser), ['chrome', 'firefox', 'safari']);
+  assert.equal(lock.summary.by_browser.safari.floor, null);
+  assert.equal(lock.summary.by_browser.safari.compatible_with_floor, null);
+
+  const replay = resolveLockForBrowser(lock, 'safari', 'replay');
+  const recompute = resolveLockForBrowser(lock, 'safari', 'recompute', makeFixtureBcd());
   assert.equal(replay.state, 'exact');
   assert.equal(recompute.state, 'exact');
-  assert.equal(replay.derived_technical_floor, '114');
-  assert.equal(recompute.derived_technical_floor, '114');
+  assert.equal(replay.derived_floor, '17.0');
+  assert.equal(recompute.derived_floor, '17.0');
+});
+
+test('compat-generate-lock accepts comma-separated floor and additional requirements files', async () => {
+  const dir = await makeTempDir();
+  const findingsPath = path.join(dir, 'findings.json');
+  const bcdPath = path.join(dir, 'bcd.json');
+  const floorReqAPath = path.join(dir, 'floor-a.requirements.json');
+  const floorReqBPath = path.join(dir, 'floor-b.requirements.json');
+  const additionalAPath = path.join(dir, 'additional-a.requirements.json');
+  const additionalBPath = path.join(dir, 'additional-b.requirements.json');
+  const outPath = path.join(dir, 'compat.lock.json');
+
+  await writeJsonFile(findingsPath, makeFindings());
+  await writeJsonFile(bcdPath, makeFixtureBcd());
+  await writeJsonFile(floorReqAPath, {
+    $schema: COMPAT_REQUIREMENTS_SCHEMA_URL,
+    format: 'compat-requirements/v1',
+    requirements: ['bcd:api.IDBFactory.open'],
+  });
+  await writeJsonFile(floorReqBPath, {
+    $schema: COMPAT_REQUIREMENTS_SCHEMA_URL,
+    format: 'compat-requirements/v1',
+    requirements: ['bcd:html.elements.dialog'],
+  });
+  await writeJsonFile(additionalAPath, {
+    $schema: COMPAT_REQUIREMENTS_SCHEMA_URL,
+    format: 'compat-requirements/v1',
+    requirements: makeAdditionalRequirements(),
+  });
+  await writeJsonFile(additionalBPath, {
+    $schema: COMPAT_REQUIREMENTS_SCHEMA_URL,
+    format: 'compat-requirements/v1',
+    requirements: ['bcd:api.Navigator.share'],
+  });
+
+  const result = await runCli('bin/compat-generate-lock.mjs', [
+    '--findings',
+    findingsPath,
+    '--floor',
+    'chrome=120,firefox=115',
+    '--floor-requirements',
+    `${floorReqAPath},${floorReqBPath}`,
+    '--additional-requirements',
+    `${additionalAPath},${additionalBPath}`,
+    '--bcd',
+    bcdPath,
+    '--out',
+    outPath,
+  ]);
+
+  assert.equal(result.code, 0);
+  const lock = await readJsonFile(outPath);
+  assert.deepEqual(lock.floor_requirements.map((item) => item.ref), [
+    'bcd:api.IDBFactory.open',
+    'bcd:html.elements.dialog',
+  ]);
+  assert.deepEqual(lock.requirements.map((item) => item.ref), [
+    'bcd:api.Navigator.share',
+    'bcd:css.properties.text-wrap',
+    'manual:behavior.structured-clone.transfer',
+  ]);
 });
 
 test('BCD ranged versions become conservative requirements', () => {
@@ -182,26 +496,26 @@ test('BCD ranged versions become conservative requirements', () => {
         releases: {
           '70': { release_date: '2018-10-16' },
           '79': { release_date: '2019-12-10' },
-          '80': { release_date: '2020-02-04' }
-        }
-      }
+          '80': { release_date: '2020-02-04' },
+        },
+      },
     },
     api: {
       Example: {
         feature: {
           __compat: {
             support: {
-              chrome: { version_added: '≤79' }
+              chrome: { version_added: '≤79' },
             },
             status: {
               experimental: false,
               standard_track: true,
-              deprecated: false
-            }
-          }
-        }
-      }
-    }
+              deprecated: false,
+            },
+          },
+        },
+      },
+    },
   };
 
   const resolved = resolveBcdRequirement({
@@ -211,7 +525,7 @@ test('BCD ranged versions become conservative requirements', () => {
       alternative_name: null,
       allow_flags: false,
       allow_partial_implementation: false,
-    }
+    },
   }, 'chrome', bcd);
 
   assert.equal(resolved.state, 'conservative');
@@ -225,26 +539,26 @@ test('removed features are marked non-monotonic and derive last_supported', () =
         releases: {
           '20': { release_date: '2012-06-26' },
           '29': { release_date: '2013-08-20' },
-          '30': { release_date: '2013-10-01' }
-        }
-      }
+          '30': { release_date: '2013-10-01' },
+        },
+      },
     },
     api: {
       Example: {
         legacy: {
           __compat: {
             support: {
-              chrome: { version_added: '20', version_removed: '30' }
+              chrome: { version_added: '20', version_removed: '30' },
             },
             status: {
               experimental: false,
               standard_track: true,
-              deprecated: true
-            }
-          }
-        }
-      }
-    }
+              deprecated: true,
+            },
+          },
+        },
+      },
+    },
   };
 
   const resolved = resolveBcdRequirement({
@@ -254,11 +568,16 @@ test('removed features are marked non-monotonic and derive last_supported', () =
       alternative_name: null,
       allow_flags: false,
       allow_partial_implementation: false,
-    }
+    },
   }, 'chrome', bcd);
 
   assert.equal(resolved.state, 'exact');
-  assert.equal(resolved.monotonic, false);
-  assert.equal(resolved.last_supported, '29');
+  assert.equal(resolved.from, '20');
   assert.equal(resolved.removed_in, '30');
+  assert.equal(resolved.last_supported, '29');
+  assert.equal(resolved.monotonic, false);
+});
+
+test('makeBcdRef stays stable for lock references', () => {
+  assert.equal(makeBcdRef('css.properties.text-wrap'), 'bcd:css.properties.text-wrap');
 });

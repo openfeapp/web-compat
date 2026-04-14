@@ -1,5 +1,5 @@
 {
-  "$schema": "../scripts/sample-scanner/sample-scanner.config.v1.schema.json",
+  "$schema": "../../scripts/sample-scanner/sample-scanner.config.v1.schema.json",
   "format": "sample-scanner-config/v1",
   "roots": ["examples/example-app/dist"],
   "extensions": [".js", ".css", ".html"],

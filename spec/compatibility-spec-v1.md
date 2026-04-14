@@ -2,68 +2,55 @@
 
 Status: Early public profile
 
-This specification defines a durable, machine-readable way to describe the browser-platform requirements of a web application, to freeze the compatibility decision made at one point in time, and to replay or recompute that decision later.
-
-The design goal is not to replace Browser Compatibility Data (BCD), specifications, or web-platform-tests. Instead, it defines how an application should reference them and how a lockfile should preserve enough evidence to be useful decades later.
+This specification defines a durable, machine-readable way to describe web-platform requirements, derive browser floors from those requirements, freeze the result in a lockfile, and replay or recompute that answer later.
 
 ## 1. Design principles
 
-1. **Executable requirement keys must be concrete.**
-   The primary requirement unit is a canonical compatibility key, not a broad specification name. In v1, the canonical key is an `@mdn/browser-compat-data` compat key such as `api.IDBFactory.open`, `css.properties.text-wrap`, or `html.elements.dialog`.
+1. Requirement keys are concrete.
+   The executable requirement unit is a canonical compatibility key, not a broad spec family name.
 
-2. **Specification URLs are provenance, not the executable lookup key.**
-   A lockfile may record `spec_url` values or immutable snapshots for archival reasons, but a resolver MUST NOT depend on dereferencing those URLs in order to compute a browser version.
+2. The lockfile is the durable contract.
+   Scanner internals, registries, and BCD snapshots can change. The lock preserves the normalized requirements and the recorded support decisions.
 
-3. **The generated lockfile is the durable contract.**
-   The scanner registry, AST rules, and BCD snapshots may evolve. The lockfile MUST preserve the concrete requirements and the exact support statements used at generation time.
+3. Replay and recompute are both first-class.
+   Replay uses the support data embedded in the lock. Recompute uses the raw requirement identity plus a chosen BCD snapshot.
 
-4. **The system must support replay and recomputation.**
-   - **Replay** uses the support statements embedded in the lockfile.
-   - **Recompute** uses the raw requirement keys and a chosen external dataset snapshot.
+4. Requirement kinds stay small and explicit.
+   v1 defines two requirement kinds:
+   - `bcd`
+   - `manual`
 
-5. **The format should avoid invented taxonomies.**
-   Only two normative requirement kinds are defined in v1:
-   - `bcd`: a requirement identified by a BCD compat key
-   - `manual`: an application-defined requirement used when behavior cannot be captured by a single BCD key
+5. Unknown future fields do not break readers.
+   Readers MUST ignore unknown fields. Writers SHOULD preserve them when rewriting artifacts.
 
-6. **Unknown future fields must not break old tooling.**
-   Readers MUST ignore unknown fields. Writers SHOULD preserve unknown fields when rewriting an artifact.
+6. Monotonicity matters.
+   If support was later removed, the resolver MUST report `monotonic: false`.
 
-7. **A resolver must report monotonicity.**
-   A "minimum version" is only a complete answer when support is monotonic after introduction. If a requirement was later removed, the resolver MUST report `monotonic: false`.
-
-## 2. Artifacts
+## 2. Artifact set
 
 This specification defines four artifact types:
 
-1. `compat-config/v1`
-   Human-authored policy for lock generation.
-
-2. `compat-findings/v1`
-   Scanner output describing concrete detected requirements before lock generation.
-
+1. `compat-findings/v1`
+2. `compat-requirements/v1`
 3. `compat-lock/v1`
-   The durable, generated lockfile. This is the primary long-lived artifact.
-
 4. `compat-resolution/v1`
-   Resolver output for one browser.
 
 ## 3. Canonical identifiers
 
-### 3.1 Requirement reference string
+Every requirement has a stable `ref`.
 
-Every requirement MUST have a stable reference string in the `ref` field.
-
-- For BCD requirements: `bcd:<compat-key>`
-- For manual requirements: `manual:<application-defined-id>`
+- BCD requirement: `bcd:<compat-key>`
+- Manual requirement: `manual:<application-defined-id>`
 
 Examples:
 
 - `bcd:api.IDBFactory.open`
-- `bcd:html.elements.dialog`
+- `bcd:css.properties.text-wrap`
 - `manual:behavior.structured-clone.transfer`
 
-### 3.2 BCD requirement identity
+## 4. Requirement identity
+
+### 4.1 `bcd`
 
 A BCD requirement is identified by:
 
@@ -71,30 +58,18 @@ A BCD requirement is identified by:
 - `key = <BCD compat key>`
 - `selector = <statement-selection constraints>`
 
-The `selector` is part of the identity for recomputation because a BCD compat entry may contain multiple support statements for the same browser.
+The selector is part of the identity because one compat entry may have multiple support statements for a browser.
 
-### 3.3 Manual requirement identity
+### 4.2 `manual`
 
 A manual requirement is identified by:
 
 - `kind = "manual"`
 - `id = <application-defined string>`
 
-A manual requirement SHOULD be used only when the application depends on behavior that cannot be reasonably represented by a single BCD compat key, such as a known semantic requirement tied to web-platform-tests or a browser bug boundary.
+Manual requirements are used when an application depends on behavior that is not represented cleanly by a single BCD key.
 
-## 4. Requirement selection model
-
-### 4.1 Why a selector exists
-
-BCD browser support can be represented by:
-
-- a single support statement
-- an array of support statements
-- `"mirror"` to indicate support mirroring an upstream browser
-
-Where multiple statements exist, a resolver needs a deterministic way to pick the applicable one. For example, one statement may describe standard support while another describes a prefixed or flagged implementation.
-
-### 4.2 Selector fields
+## 5. Selector model
 
 A BCD requirement MAY contain `selector` with these fields:
 
@@ -116,22 +91,16 @@ For standard unprefixed application code, the recommended selector is:
 
 A resolver MUST apply the selector before interpreting the chosen support statement.
 
-## 5. Support interpretation model
+## 6. Support normalization
 
-For a selected browser support statement, the resolver MUST normalize it into one of four states:
+For a selected browser support statement, the resolver normalizes into one of:
 
 - `exact`
-  The earliest supporting version is known exactly.
 - `conservative`
-  A conservative floor is known, but the true first supporting version may be earlier. In BCD v1 practice this is caused by ranged versions such as `≤79`.
 - `unknown`
-  Support exists or may exist, but a dependable floor cannot be computed from the available data. This includes `true`, `null`, `preview`, dataset-missing keys, or failure to find a matching support statement.
 - `unsupported`
-  The requirement has no supported version in the chosen browser.
 
-### 5.1 Normalization rules
-
-Given the selected support statement for a browser:
+Normalization rules:
 
 - `version_added: "114"` -> `state = exact`, `from = "114"`
 - `version_added: "≤79"` -> `state = conservative`, `from = "79"`
@@ -142,134 +111,27 @@ Given the selected support statement for a browser:
 
 If `version_removed` is present, the normalized entry MUST set `monotonic = false`. Otherwise `monotonic = true`.
 
-If `version_last` is absent and `version_removed` is exact, a resolver MAY derive `last_supported` from browser release ordering data.
+## 7. Summary semantics
 
-## 6. Browser version ordering
-
-A resolver SHOULD order versions using the browser release metadata from BCD when available. If release metadata is unavailable, a resolver MAY fall back to dotted numeric comparison.
-
-For Chrome-like browsers, exact comparison by version number is usually sufficient, but BCD release metadata is preferred because it provides explicit release ordering and dates.
-
-## 7. Resolver modes
-
-### 7.1 Replay mode
-
-Replay mode reads the `resolved` support statements embedded in the lockfile. It does not require external datasets.
-
-Replay mode MUST be the default for long-term archival use.
-
-### 7.2 Recompute mode
-
-Recompute mode uses the raw requirement identity (`kind`, `key`, `selector`) from the lockfile and a chosen external BCD snapshot to compute a fresh answer.
-
-Recompute mode SHOULD be used to detect compatibility drift or improvements in the external dataset.
-
-## 8. Summary semantics
-
-For one browser, the resolver MUST classify the overall result as one of:
+For one browser, the resolver reports one of:
 
 - `exact`
-  Every requirement is supported and every floor is exact.
 - `conservative`
-  Every requirement is supported, at least one floor is conservative, and no requirement is unknown.
 - `unresolved`
-  No requirement is unsupported, but at least one requirement is unknown.
 - `unsatisfied`
-  At least one requirement is unsupported.
 
-### 8.1 Derived technical floor
+Derived fields:
 
-If the overall state is `exact` or `conservative`, the resolver MUST compute `derived_technical_floor` as the maximum of all known per-requirement `from` versions.
+- `derived_floor`
+  The exact or conservative maximum of all known per-requirement floors when the browser is satisfiable.
+- `known_floor`
+  The maximum known floor even when the overall result is unresolved or unsatisfied.
+- `compatible_with_floor`
+  Comparison of the computed answer against the declared browser floor when a floor exists for that browser.
 
-If the overall state is `unresolved` or `unsatisfied`, `derived_technical_floor` MAY be omitted and `known_floor` MAY be provided instead.
-
-### 8.2 Declared support floor
-
-A config file may declare a browser support floor, such as `chrome >= 120`.
-
-Resolver interpretation:
-
-- If the overall state is `exact`, `compatible_with_declared_floor` MUST be `true` or `false`.
-- If the overall state is `conservative`:
-  - if `derived_technical_floor <= declared_support_floor`, `compatible_with_declared_floor` MUST be `true`
-  - otherwise it MUST be `null` because the conservative floor may overestimate the real minimum
-- If the overall state is `unresolved`, `compatible_with_declared_floor` MUST be `null`
-- If the overall state is `unsatisfied`, `compatible_with_declared_floor` MUST be `false`
-
-## 9. Long-term durability rules
-
-1. A lockfile MUST include the BCD provenance used to generate it, including at minimum the BCD package `version` and `timestamp` when available.
-2. A lockfile SHOULD embed the exact selected support statement used for each browser decision.
-3. A lockfile MAY include specification URLs copied from BCD.
-4. A lockfile MAY include archival specification snapshot URLs, but a resolver MUST NOT require them.
-5. External URLs are advisory only. A compliant resolver MUST be able to operate without network access.
-6. Readers MUST ignore unknown fields.
-7. Writers SHOULD preserve unknown fields.
-8. Writers SHOULD sort requirements by `ref` for stable diffs.
-
-## 10. Why specs alone are insufficient
-
-A broad statement such as "requires IndexedDB" is useful for humans but generally insufficient for exact version replay. Browser compatibility datasets are keyed at more specific feature granularity. Therefore v1 uses the concrete BCD key as the executable unit and treats specification URLs as provenance.
-
-## 11. Recommended v1 profile
-
-For the best balance of simplicity and long-term reversibility, a v1 implementation SHOULD:
-
-1. when producing findings, prefer scanning built runtime assets (`.js`, `.css`, `.html`) rather than authoring-time source when practical
-2. emit BCD requirement keys
-3. include a selector for every BCD requirement, even when it is the default unprefixed selector
-4. copy `spec_url` and the selected support statement into the lockfile
-5. store BCD package `version` and `timestamp`
-6. allow a small, explicit `manual_requirements` escape hatch
-7. support both replay and recompute resolver modes
-
-## 12. Artifact definitions
-
-### 12.1 `compat-config/v1`
-
-Purpose: human-authored policy.
-
-Scanner configuration is intentionally out of scope for this artifact. Tools MAY colocate scanner settings alongside this document, but compliant lock generators MUST only depend on the fields defined here.
-
-Required fields:
-
-- `format`
-- `targets`
-
-Recommended fields:
-
-- `manual_requirements`
-
-Example:
-
-```json
-{
-  "format": "compat-config/v1",
-  "targets": {
-    "chrome": "120"
-  },
-  "manual_requirements": [
-    {
-      "kind": "manual",
-      "id": "behavior.structured-clone.transfer",
-      "title": "Structured clone transfer semantics",
-      "targets": {
-        "chrome": "104"
-      },
-      "reason": "Depends on behavior tracked by WPT.",
-      "source": [
-        "wpt:html/webappapis/structured-clone/..."
-      ]
-    }
-  ]
-}
-```
-
-### 12.2 `compat-findings/v1`
+## 8. `compat-findings/v1`
 
 Purpose: scanner output.
-
-How a scanner is configured, how it traverses inputs, and whether it uses regexes, ASTs, parsers, or build metadata are all intentionally out of scope for this specification.
 
 Required fields:
 
@@ -278,7 +140,7 @@ Required fields:
 - `tool`
 - `findings`
 
-Each finding SHOULD already use the canonical BCD key.
+Each finding SHOULD already use a canonical BCD key.
 
 Example:
 
@@ -304,7 +166,6 @@ Example:
       "evidence": [
         {
           "path": "dist/app.js",
-          "loc": "120:17-120:32",
           "rule": "js/member-call/IDBFactory.open"
         }
       ]
@@ -313,20 +174,92 @@ Example:
 }
 ```
 
-### 12.3 `compat-lock/v1`
+## 9. `compat-requirements/v1`
 
-Purpose: durable generated contract.
+Purpose: hand-authored requirements.
 
 Required fields:
 
 - `format`
+- `requirements`
+
+Each entry may be:
+
+- an explicit `bcd:<compat-key>` string
+- a full `bcd` requirement object
+- a full `manual` requirement object
+
+Manual requirements use `support`, not `targets`.
+
+Example:
+
+```json
+{
+  "format": "compat-requirements/v1",
+  "requirements": [
+    "bcd:api.IDBFactory.open",
+    {
+      "kind": "manual",
+      "id": "behavior.structured-clone.transfer",
+      "support": {
+        "chrome": "104",
+        "firefox": "94"
+      },
+      "source": [
+        "https://html.spec.whatwg.org/multipage/structured-data.html#structuredserializewithtransfer"
+      ]
+    }
+  ]
+}
+```
+
+## 10. `compat-lock/v1`
+
+Purpose: durable generated contract.
+
+Required top-level fields:
+
+- `format`
 - `generated_at`
 - `tool`
-- `targets`
+- `floor`
+- `floor_requirements`
 - `requirements`
 - `summary`
 
-A BCD requirement entry MUST include:
+### 10.1 Floor semantics
+
+`floor` is a map of declared browser floors, such as:
+
+```json
+{
+  "chrome": "120",
+  "firefox": "115"
+}
+```
+
+These values are policy inputs for comparison. They do not change the per-requirement BCD resolution itself.
+
+### 10.2 Floor requirements
+
+`floor_requirements` are normalized baseline requirements that define the starting platform assumptions for the application profile.
+
+They are always stored in the lock and always participate in summary and resolution.
+
+### 10.3 Omitted baseline intersection
+
+The lock omits app requirements already satisfied by the baseline intersection implied by `floor_requirements`.
+
+That means:
+
+- `floor_requirements` stay explicit in the lock
+- top-level `requirements` only contains app requirements outside that baseline intersection
+
+This omission is a deliberate compression rule for the lock model.
+
+### 10.4 Requirement entries
+
+A BCD requirement entry includes:
 
 - `kind`
 - `ref`
@@ -335,53 +268,21 @@ A BCD requirement entry MUST include:
 - `evidence`
 - `resolved`
 
-A manual requirement entry MUST include:
+A manual requirement entry includes:
 
 - `kind`
 - `ref`
 - `id`
-- `targets`
+- `support`
 - `resolved`
 
-Example BCD requirement entry:
+### 10.5 Replay durability
 
-```json
-{
-  "kind": "bcd",
-  "ref": "bcd:api.IDBFactory.open",
-  "key": "api.IDBFactory.open",
-  "selector": {
-    "prefix": null,
-    "alternative_name": null,
-    "allow_flags": false,
-    "allow_partial_implementation": false
-  },
-  "spec": [
-    "https://w3c.github.io/IndexedDB/#dom-idbfactory-open"
-  ],
-  "evidence": [
-    {
-      "path": "dist/app.js",
-      "loc": "120:17-120:32",
-      "rule": "js/member-call/IDBFactory.open"
-    }
-  ],
-  "resolved": {
-    "chrome": {
-      "state": "exact",
-      "from": "23",
-      "monotonic": true,
-      "statement": {
-        "version_added": "23"
-      }
-    }
-  }
-}
-```
+The lock SHOULD store resolved data for every browser present in the generation-time BCD dataset so replay remains available even for browsers not listed in the declared `floor`.
 
-### 12.4 `compat-resolution/v1`
+## 11. `compat-resolution/v1`
 
-Purpose: a single-browser resolver result.
+Purpose: single-browser resolver output.
 
 Required fields:
 
@@ -392,6 +293,14 @@ Required fields:
 - `monotonic`
 - `requirements`
 
+Recommended summary fields:
+
+- `floor`
+- `derived_floor`
+- `known_floor`
+- `compatible_with_floor`
+- `blocking_requirements`
+
 Example:
 
 ```json
@@ -400,9 +309,10 @@ Example:
   "browser": "chrome",
   "mode": "replay",
   "state": "exact",
-  "derived_technical_floor": "114",
-  "declared_support_floor": "120",
-  "compatible_with_declared_floor": true,
+  "floor": "120",
+  "derived_floor": "114",
+  "known_floor": "114",
+  "compatible_with_floor": true,
   "monotonic": true,
   "blocking_requirements": [
     "bcd:css.properties.text-wrap"
@@ -417,9 +327,18 @@ Example:
 }
 ```
 
+## 12. Long-term durability rules
+
+1. A lockfile MUST include BCD provenance, including package `version` and `timestamp` when available.
+2. A lockfile SHOULD embed the selected support statement used for each browser decision.
+3. External URLs are advisory only. A compliant resolver MUST be able to operate without network access.
+4. Readers MUST ignore unknown fields.
+5. Writers SHOULD preserve unknown fields.
+6. Writers SHOULD sort requirements by `ref` for stable diffs.
+
 ## 13. Non-goals
 
-This specification deliberately does not standardize:
+This specification does not standardize:
 
 - AST formats
 - scanner implementation details
@@ -429,20 +348,10 @@ This specification deliberately does not standardize:
 
 ## 14. Security and trust
 
-A lockfile can only be as sound as its scanner, manual overrides, and chosen BCD snapshot. The lockfile therefore records provenance rather than claiming universal truth.
-
-Resolvers SHOULD treat `manual` requirements as trusted input from the application author.
+A lockfile is only as sound as its scanner, manual requirements, floor requirements, and chosen BCD snapshot. The lock records provenance rather than claiming universal truth.
 
 ## 15. Versioning and evolution
 
-Future versions of this specification SHOULD add fields rather than changing the meaning of existing fields.
+Future versions SHOULD add fields rather than changing the meaning of existing fields.
 
 Breaking semantic changes MUST use a new `format` value.
-
-
-## 16. Informative references
-
-- MDN Browser Compatibility Data (BCD)
-- WHATWG Living Standards and snapshot links
-- W3C standards and dated snapshots
-- web-platform-tests and wpt.fyi

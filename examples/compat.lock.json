@@ -1,8 +1,8 @@
 {
   "format": "compat-lock/v1",
-  "generated_at": "2026-04-13T20:41:48.624Z",
+  "generated_at": "2026-04-14T07:29:22.900Z",
   "tool": {
-    "generator": "compat-generate-lock/1.0.0",
+    "generator": "compat-generate-lock/0.1.0",
     "scanner": "sample-scanner/1.0.0",
     "registry": "sample-scanner-registry/1",
     "datasets": {
@@ -12,10 +12,10 @@
       }
     }
   },
-  "targets": {
+  "floor": {
     "chrome": "120"
   },
-  "requirements": [
+  "floor_requirements": [
     {
       "kind": "bcd",
       "ref": "bcd:api.IDBFactory.open",
@@ -26,14 +26,7 @@
         "allow_flags": false,
         "allow_partial_implementation": false
       },
-      "evidence": [
-        {
-          "path": "examples/example-app/dist/app.js",
-          "loc": "2:19-2:33",
-          "rule": "js/member-call/IDBFactory.open",
-          "snippet": "indexedDB.open("
-        }
-      ],
+      "evidence": [],
       "resolved": {
         "chrome": {
           "reason": null,
@@ -53,6 +46,38 @@
         "https://w3c.github.io/IndexedDB/#dom-idbfactory-open"
       ]
     },
+    {
+      "kind": "bcd",
+      "ref": "bcd:html.elements.dialog",
+      "key": "html.elements.dialog",
+      "selector": {
+        "prefix": null,
+        "alternative_name": null,
+        "allow_flags": false,
+        "allow_partial_implementation": false
+      },
+      "evidence": [],
+      "resolved": {
+        "chrome": {
+          "reason": null,
+          "from": "37",
+          "release_date": "2014-08-26",
+          "removed_in": null,
+          "removed_release_date": null,
+          "last_supported": null,
+          "monotonic": true,
+          "statement": {
+            "version_added": "37"
+          },
+          "state": "exact"
+        }
+      },
+      "spec": [
+        "https://html.spec.whatwg.org/multipage/interactive-elements.html#the-dialog-element"
+      ]
+    }
+  ],
+  "requirements": [
     {
       "kind": "bcd",
       "ref": "bcd:api.Navigator.share",
@@ -128,53 +153,16 @@
       ]
     },
     {
-      "kind": "bcd",
-      "ref": "bcd:html.elements.dialog",
-      "key": "html.elements.dialog",
-      "selector": {
-        "prefix": null,
-        "alternative_name": null,
-        "allow_flags": false,
-        "allow_partial_implementation": false
-      },
-      "evidence": [
-        {
-          "path": "examples/example-app/dist/index.html",
-          "loc": "4:5-4:11",
-          "rule": "html/element/dialog",
-          "snippet": "<dialog"
-        }
-      ],
-      "resolved": {
-        "chrome": {
-          "reason": null,
-          "from": "37",
-          "release_date": "2014-08-26",
-          "removed_in": null,
-          "removed_release_date": null,
-          "last_supported": null,
-          "monotonic": true,
-          "statement": {
-            "version_added": "37"
-          },
-          "state": "exact"
-        }
-      },
-      "spec": [
-        "https://html.spec.whatwg.org/multipage/interactive-elements.html#the-dialog-element"
-      ]
-    },
-    {
       "kind": "manual",
       "ref": "manual:behavior.structured-clone.transfer",
       "id": "behavior.structured-clone.transfer",
-      "title": "Structured clone transfer semantics",
+      "title": "Structured clone with transfer support",
       "reason": "Application depends on a semantic boundary not represented by a single BCD key.",
-      "targets": {
+      "support": {
         "chrome": "104"
       },
       "source": [
-        "wpt:html/webappapis/structured-clone/"
+        "https://html.spec.whatwg.org/multipage/structured-data.html#structuredserializewithtransfer"
       ],
       "resolved": {
         "chrome": {
@@ -198,10 +186,10 @@
     "by_browser": {
       "chrome": {
         "state": "exact",
-        "declared_support_floor": "120",
-        "derived_technical_floor": "114",
+        "floor": "120",
+        "derived_floor": "114",
         "known_floor": "114",
-        "compatible_with_declared_floor": true,
+        "compatible_with_floor": true,
         "monotonic": true,
         "blocking_requirements": [
           "bcd:css.properties.text-wrap"
@@ -218,6 +206,20 @@
             "monotonic": true,
             "statement": {
               "version_added": "23"
+            },
+            "state": "exact"
+          },
+          {
+            "ref": "bcd:html.elements.dialog",
+            "reason": null,
+            "from": "37",
+            "release_date": "2014-08-26",
+            "removed_in": null,
+            "removed_release_date": null,
+            "last_supported": null,
+            "monotonic": true,
+            "statement": {
+              "version_added": "37"
             },
             "state": "exact"
           },
@@ -246,20 +248,6 @@
             "monotonic": true,
             "statement": {
               "version_added": "114"
-            },
-            "state": "exact"
-          },
-          {
-            "ref": "bcd:html.elements.dialog",
-            "reason": null,
-            "from": "37",
-            "release_date": "2014-08-26",
-            "removed_in": null,
-            "removed_release_date": null,
-            "last_supported": null,
-            "monotonic": true,
-            "statement": {
-              "version_added": "37"
             },
             "state": "exact"
           },

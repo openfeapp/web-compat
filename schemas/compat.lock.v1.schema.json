@@ -3,7 +3,7 @@
   "$id": "https://raw.githubusercontent.com/openfeapp/web-compat/main/schemas/compat.lock.v1.schema.json",
   "title": "compat-lock/v1",
   "type": "object",
-  "required": ["format", "generated_at", "tool", "targets", "requirements", "summary"],
+  "required": ["format", "generated_at", "tool", "floor", "floor_requirements", "requirements", "summary"],
   "properties": {
     "$schema": { "type": "string" },
     "format": { "const": "compat-lock/v1" },
@@ -32,10 +32,19 @@
       },
       "additionalProperties": true
     },
-    "targets": {
+    "floor": {
       "type": "object",
       "minProperties": 1,
       "additionalProperties": { "type": "string", "minLength": 1 }
+    },
+    "floor_requirements": {
+      "type": "array",
+      "items": {
+        "oneOf": [
+          { "$ref": "#/$defs/bcdRequirement" },
+          { "$ref": "#/$defs/manualRequirement" }
+        ]
+      }
     },
     "requirements": {
       "type": "array",
@@ -140,14 +149,14 @@
     },
     "manualRequirement": {
       "type": "object",
-      "required": ["kind", "ref", "id", "targets", "resolved"],
+      "required": ["kind", "ref", "id", "support", "resolved"],
       "properties": {
         "kind": { "const": "manual" },
         "ref": { "type": "string", "pattern": "^manual:" },
         "id": { "type": "string" },
         "title": { "type": "string" },
         "reason": { "type": "string" },
-        "targets": {
+        "support": {
           "type": "object",
           "additionalProperties": { "type": "string" }
         },
@@ -169,16 +178,16 @@
         "state": {
           "enum": ["exact", "conservative", "unresolved", "unsatisfied"]
         },
-        "declared_support_floor": {
+        "floor": {
           "type": ["string", "null"]
         },
-        "derived_technical_floor": {
+        "derived_floor": {
           "type": ["string", "null"]
         },
         "known_floor": {
           "type": ["string", "null"]
         },
-        "compatible_with_declared_floor": {
+        "compatible_with_floor": {
           "type": ["boolean", "null"]
         },
         "monotonic": { "type": "boolean" },

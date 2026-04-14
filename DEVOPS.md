@@ -1,12 +1,6 @@
 # Release Runbook
 
-This repository currently uses a manual release process.
-
-Current constraints:
-
-- There is no CI workflow in this repository.
-- There is no automated release script.
-- npm publishing and GitHub release creation are manual steps.
+This repository uses a manual release process.
 
 ## Prerequisites
 
@@ -46,10 +40,9 @@ Confirm the tarball contains the expected public surface:
 - `schemas/`
 - `spec/`
 
-5. Optionally smoke-check the public CLIs locally.
+5. Smoke-check the public CLIs locally.
 
 ```bash
-node bin/compat-generate-config.mjs --help
 node bin/compat-generate-lock.mjs --help
 node bin/compat-resolve.mjs --help
 ```
@@ -84,13 +77,12 @@ git push origin v0.1.x
 
 - Open the tag in the GitHub Releases UI.
 - Title the release `v0.1.x`.
-- Summarize the user-facing CLI/schema/doc changes.
+- Summarize the artifact, CLI, and schema changes.
 
-11. Optionally smoke-check the published package from a clean directory.
+11. Smoke-check the published package from a clean directory.
 
 ```bash
 npm install @openfeapp/web-compat@0.1.x
-npx compat-generate-config --help
 npx compat-generate-lock --help
 npx compat-resolve --help
 ```

@@ -1,0 +1,7 @@
+{
+  "$schema": "https://raw.githubusercontent.com/openfeapp/web-compat/main/schemas/compat.requirements.v1.schema.json",
+  "format": "compat-requirements/v1",
+  "requirements": [
+    "bcd:api.IDBFactory.open"
+  ]
+}

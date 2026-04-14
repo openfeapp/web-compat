@@ -21,12 +21,10 @@
   ],
   "type": "module",
   "bin": {
-    "compat-generate-config": "./bin/compat-generate-config.mjs",
     "compat-generate-lock": "./bin/compat-generate-lock.mjs",
     "compat-resolve": "./bin/compat-resolve.mjs"
   },
   "scripts": {
-    "generate-config": "node bin/compat-generate-config.mjs",
     "generate-lock": "node bin/compat-generate-lock.mjs",
     "resolve": "node bin/compat-resolve.mjs",
     "sample-scan": "node scripts/sample-scanner/sample-scan.mjs",

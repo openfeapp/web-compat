@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/openfeapp/web-compat/main/schemas/compat.requirements.v1.schema.json",
+  "title": "compat-requirements/v1",
+  "type": "object",
+  "required": ["format", "requirements"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "format": { "const": "compat-requirements/v1" },
+    "requirements": {
+      "type": "array",
+      "items": {
+        "oneOf": [
+          {
+            "type": "string",
+            "pattern": "^bcd:[^\\s]+$"
+          },
+          { "$ref": "#/$defs/bcdRequirementInput" },
+          { "$ref": "#/$defs/manualRequirementInput" }
+        ]
+      }
+    }
+  },
+  "$defs": {
+    "selector": {
+      "type": "object",
+      "required": ["prefix", "alternative_name", "allow_flags", "allow_partial_implementation"],
+      "properties": {
+        "prefix": { "type": ["string", "null"] },
+        "alternative_name": { "type": ["string", "null"] },
+        "allow_flags": { "type": "boolean" },
+        "allow_partial_implementation": { "type": "boolean" }
+      },
+      "additionalProperties": false
+    },
+    "evidence": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["path", "rule"],
+        "properties": {
+          "path": { "type": "string" },
+          "loc": { "type": "string" },
+          "rule": { "type": "string" },
+          "snippet": { "type": "string" }
+        },
+        "additionalProperties": true
+      }
+    },
+    "bcdRequirementInput": {
+      "type": "object",
+      "required": ["kind"],
+      "properties": {
+        "kind": { "const": "bcd" },
+        "ref": { "type": "string", "pattern": "^bcd:" },
+        "key": { "type": "string", "minLength": 1 },
+        "selector": { "$ref": "#/$defs/selector" },
+        "evidence": { "$ref": "#/$defs/evidence" }
+      },
+      "anyOf": [
+        { "required": ["ref"] },
+        { "required": ["key"] }
+      ],
+      "additionalProperties": true
+    },
+    "manualRequirementInput": {
+      "type": "object",
+      "required": ["kind", "id", "support"],
+      "properties": {
+        "kind": { "const": "manual" },
+        "ref": { "type": "string", "pattern": "^manual:" },
+        "id": { "type": "string", "minLength": 1 },
+        "title": { "type": "string" },
+        "reason": { "type": "string" },
+        "support": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": { "type": "string", "minLength": 1 }
+        },
+        "source": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

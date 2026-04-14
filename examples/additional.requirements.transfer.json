@@ -1,0 +1,19 @@
+{
+  "$schema": "https://raw.githubusercontent.com/openfeapp/web-compat/main/schemas/compat.requirements.v1.schema.json",
+  "format": "compat-requirements/v1",
+  "requirements": [
+    {
+      "kind": "manual",
+      "ref": "manual:behavior.structured-clone.transfer",
+      "id": "behavior.structured-clone.transfer",
+      "title": "Structured clone with transfer support",
+      "reason": "Application depends on a semantic boundary not represented by a single BCD key.",
+      "support": {
+        "chrome": "104"
+      },
+      "source": [
+        "https://html.spec.whatwg.org/multipage/structured-data.html#structuredserializewithtransfer"
+      ]
+    }
+  ]
+}
