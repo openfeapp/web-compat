@@ -3,7 +3,7 @@
   "$id": "https://raw.githubusercontent.com/openfeapp/web-compat/main/schemas/compat.lock.v1.schema.json",
   "title": "compat-lock/v1",
   "type": "object",
-  "required": ["format", "generated_at", "tool", "floor", "floor_requirements", "requirements", "summary"],
+  "required": ["format", "generated_at", "tool", "floor_requirements", "requirements", "summary"],
   "properties": {
     "$schema": { "type": "string" },
     "format": { "const": "compat-lock/v1" },
@@ -31,11 +31,6 @@
         }
       },
       "additionalProperties": true
-    },
-    "floor": {
-      "type": "object",
-      "minProperties": 1,
-      "additionalProperties": { "type": "string", "minLength": 1 }
     },
     "floor_requirements": {
       "type": "array",
@@ -173,22 +168,16 @@
     },
     "browserSummary": {
       "type": "object",
-      "required": ["state", "monotonic", "blocking_requirements"],
+      "required": ["state", "monotonic"],
       "properties": {
         "state": {
           "enum": ["exact", "conservative", "unresolved", "unsatisfied"]
-        },
-        "floor": {
-          "type": ["string", "null"]
         },
         "derived_floor": {
           "type": ["string", "null"]
         },
         "known_floor": {
           "type": ["string", "null"]
-        },
-        "compatible_with_floor": {
-          "type": ["boolean", "null"]
         },
         "monotonic": { "type": "boolean" },
         "blocking_requirements": {

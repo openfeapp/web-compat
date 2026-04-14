@@ -11,7 +11,6 @@ import {
   generateLock,
   loadBcd,
   loadRequirementsFiles,
-  parseBrowserVersionMap,
   parseCommaSeparatedList,
   readJsonFile,
   writeJsonFile,
@@ -19,10 +18,9 @@ import {
 
 const HELP_TEXT = renderCliHelp({
   purpose: 'Generate a compat-lock/v1 from findings, floor requirements, additional requirements, and BCD.',
-  usage: 'compat-generate-lock --findings file --floor browser=version[,browser=version...] --out file [--floor-requirements files] [--additional-requirements files] [--bcd file] [-h|--help]',
+  usage: 'compat-generate-lock --findings file --out file [--floor-requirements files] [--additional-requirements files] [--bcd file] [-h|--help]',
   required: [
     '--findings file  Path to compat-findings/v1 JSON.',
-    '--floor browser=version[,browser=version...]  Declared browser floors used for comparison.',
     '--out file  Where to write compat-lock/v1 JSON.',
   ],
   optional: [
@@ -31,7 +29,7 @@ const HELP_TEXT = renderCliHelp({
     '--bcd file  Use a BCD JSON file instead of installed @mdn/browser-compat-data.',
     '-h, --help  Show this help text.',
   ],
-  example: 'compat-generate-lock --findings findings.json --floor chrome=120,firefox=115 --floor-requirements indexeddb.json,dialog.json --additional-requirements transfer.json,share.json --out compat.lock.json',
+  example: 'compat-generate-lock --findings findings.json --floor-requirements indexeddb.json,dialog.json --additional-requirements transfer.json,share.json --out compat.lock.json',
 });
 
 async function main() {
@@ -43,7 +41,7 @@ async function main() {
     return;
   }
 
-  const missing = missingArgs(args, ['findings', 'floor', 'out']);
+  const missing = missingArgs(args, ['findings', 'out']);
   if (argv.length === 0 || missing.length > 0) {
     const message = argv.length === 0
       ? 'No arguments provided.'
@@ -54,7 +52,6 @@ async function main() {
   }
 
   const findingsPath = requireArg(args, 'findings');
-  const floor = parseBrowserVersionMap(requireArg(args, 'floor'));
   const outPath = requireArg(args, 'out');
   const floorRequirementPaths = parseCommaSeparatedList(args['floor-requirements']);
   const additionalRequirementPaths = parseCommaSeparatedList(args['additional-requirements']);
@@ -67,7 +64,6 @@ async function main() {
   ]);
 
   const lock = generateLock({
-    floor,
     findings,
     floorRequirements,
     additionalRequirements,

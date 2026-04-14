@@ -3,14 +3,9 @@
   "browser": "chrome",
   "mode": "recompute",
   "state": "exact",
-  "floor": "120",
   "derived_floor": "114",
   "known_floor": "114",
-  "compatible_with_floor": true,
   "monotonic": true,
-  "blocking_requirements": [
-    "bcd:css.properties.text-wrap"
-  ],
   "requirements": [
     {
       "ref": "bcd:api.IDBFactory.open",
@@ -23,6 +18,20 @@
       "monotonic": true,
       "statement": {
         "version_added": "23"
+      },
+      "state": "exact"
+    },
+    {
+      "ref": "bcd:html.elements.dialog",
+      "reason": null,
+      "from": "37",
+      "release_date": "2014-08-26",
+      "removed_in": null,
+      "removed_release_date": null,
+      "last_supported": null,
+      "monotonic": true,
+      "statement": {
+        "version_added": "37"
       },
       "state": "exact"
     },
@@ -51,20 +60,6 @@
       "monotonic": true,
       "statement": {
         "version_added": "114"
-      },
-      "state": "exact"
-    },
-    {
-      "ref": "bcd:html.elements.dialog",
-      "reason": null,
-      "from": "37",
-      "release_date": "2014-08-26",
-      "removed_in": null,
-      "removed_release_date": null,
-      "last_supported": null,
-      "monotonic": true,
-      "statement": {
-        "version_added": "37"
       },
       "state": "exact"
     },

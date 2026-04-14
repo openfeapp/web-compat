@@ -41,7 +41,6 @@ Generate a lock from findings:
 ```bash
 compat-generate-lock \
   --findings path/to/compat.findings.json \
-  --floor chrome=120,firefox=115 \
   --floor-requirements path/to/floor-a.requirements.json,path/to/floor-b.requirements.json \
   --additional-requirements path/to/additional-a.requirements.json,path/to/additional-b.requirements.json \
   --out path/to/compat.lock.json
@@ -118,7 +117,6 @@ Example:
 
 The generated lock stores:
 
-- the declared browser `floor`
 - the normalized `floor_requirements`
 - the remaining app `requirements`
 - per-browser summaries and replay data
@@ -130,12 +128,17 @@ The generated lock stores:
 
 Resolver output for one browser. It reports:
 
-- `floor`
 - `derived_floor`
 - `known_floor`
-- `compatible_with_floor`
-- `blocking_requirements`
+- `blocking_requirements` for `unresolved` and `unsatisfied`
 - per-requirement replay or recompute details
+
+Browser states mean:
+
+- `exact`: every requirement has a known exact floor for that browser
+- `conservative`: the browser is satisfiable, but at least one requirement only has a conservative floor
+- `unresolved`: one or more requirements are unknown, so no real floor can be concluded
+- `unsatisfied`: one or more requirements are unsupported, so the browser family cannot satisfy the requirement set
 
 ## Examples
 
@@ -158,7 +161,6 @@ Generate the sample lock:
 ```bash
 node bin/compat-generate-lock.mjs \
   --findings examples/compat.findings.json \
-  --floor chrome=120 \
   --floor-requirements examples/floor.requirements.indexeddb.json,examples/floor.requirements.dialog.json \
   --additional-requirements examples/additional.requirements.transfer.json,examples/additional.requirements.share.json \
   --bcd examples/bcd.fixture.json \

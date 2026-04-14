@@ -1,6 +1,6 @@
 {
   "name": "@openfeapp/web-compat",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Early public CLI and schemas for web app compatibility findings, lockfiles, and resolution.",
   "author": "Simon Cheng",
   "license": "MIT",

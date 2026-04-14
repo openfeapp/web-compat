@@ -245,31 +245,6 @@ function normalizeVersionMap(value, label) {
   return result;
 }
 
-export function parseBrowserVersionMap(rawValue, label = '--floor') {
-  const result = {};
-  for (const item of String(rawValue ?? '').split(',')) {
-    const trimmed = item.trim();
-    if (!trimmed) continue;
-    const separatorIndex = trimmed.indexOf('=');
-    const hasSingleSeparator = separatorIndex > 0 && separatorIndex === trimmed.lastIndexOf('=');
-    if (!hasSingleSeparator) {
-      throw new Error(`Invalid ${label} entry "${trimmed}". Expected browser=version.`);
-    }
-    const browser = trimmed.slice(0, separatorIndex).trim();
-    const version = trimmed.slice(separatorIndex + 1).trim();
-    if (!browser || !version) {
-      throw new Error(`Invalid ${label} entry "${trimmed}". Expected browser=version.`);
-    }
-    result[browser] = version;
-  }
-
-  if (Object.keys(result).length === 0) {
-    throw new Error(`${label} requires at least one browser=version entry.`);
-  }
-
-  return result;
-}
-
 export function parseCommaSeparatedList(rawValue) {
   if (!rawValue) {
     return [];
@@ -799,7 +774,7 @@ function isResolvedSupportedAtVersion(resolved, browser, version, bcd) {
   return true;
 }
 
-function summarizeBrowser(requirements, browser, floorVersion, bcd) {
+function summarizeBrowser(requirements, browser, bcd) {
   const perRequirement = requirements.map((requirement) => ({
     ref: requirement.ref,
     ...(requirement.resolved?.[browser] ?? {
@@ -824,12 +799,10 @@ function summarizeBrowser(requirements, browser, floorVersion, bcd) {
 
   let state;
   let derivedFloor = null;
-  let compatibleWithFloor = null;
-  let blockingRequirements = [];
+  let blockingRequirements = null;
 
   if (unsupported.length > 0) {
     state = 'unsatisfied';
-    compatibleWithFloor = floorVersion ? false : null;
     blockingRequirements = unsupported.map((item) => item.ref).sort();
   } else if (unknown.length > 0) {
     state = 'unresolved';
@@ -837,45 +810,24 @@ function summarizeBrowser(requirements, browser, floorVersion, bcd) {
   } else if (conservative.length > 0) {
     state = 'conservative';
     derivedFloor = knownFloor;
-    if (floorVersion && derivedFloor) {
-      compatibleWithFloor = compareVersions(bcd, browser, derivedFloor, floorVersion) <= 0
-        ? true
-        : null;
-    }
-    blockingRequirements = perRequirement
-      .filter((item) => item.from && item.from === derivedFloor)
-      .map((item) => item.ref)
-      .sort();
   } else {
     state = 'exact';
     derivedFloor = knownFloor;
-    if (floorVersion) {
-      compatibleWithFloor = derivedFloor === null
-        ? true
-        : compareVersions(bcd, browser, derivedFloor, floorVersion) <= 0;
-    }
-    blockingRequirements = perRequirement
-      .filter((item) => item.from && item.from === derivedFloor)
-      .map((item) => item.ref)
-      .sort();
   }
 
   return {
     state,
-    floor: floorVersion ?? null,
     derived_floor: derivedFloor,
     known_floor: knownFloor,
-    compatible_with_floor: compatibleWithFloor,
     monotonic,
-    blocking_requirements: blockingRequirements,
+    ...(blockingRequirements ? { blocking_requirements: blockingRequirements } : {}),
     requirements: perRequirement,
   };
 }
 
-function collectBrowsers({ bcd, floor, requirements }) {
+function collectBrowsers({ bcd, requirements }) {
   const browsers = new Set([
     ...Object.keys(bcd?.browsers ?? {}),
-    ...Object.keys(floor ?? {}),
   ]);
 
   for (const requirement of requirements ?? []) {
@@ -892,7 +844,7 @@ function collectBrowsers({ bcd, floor, requirements }) {
 function deriveIntersectionFloorByBrowser(floorRequirementEntries, browsers, bcd) {
   const result = {};
   for (const browser of browsers) {
-    const summary = summarizeBrowser(floorRequirementEntries, browser, null, bcd);
+    const summary = summarizeBrowser(floorRequirementEntries, browser, bcd);
     result[browser] = summary.derived_floor;
   }
   return result;
@@ -913,10 +865,10 @@ function isRequirementInBaselineIntersection(requirement, baselineByBrowser, bro
   });
 }
 
-export function summarizeLock(requirements, floor, bcd, browsers = collectBrowsers({ bcd, floor, requirements })) {
+export function summarizeLock(requirements, bcd, browsers = collectBrowsers({ bcd, requirements })) {
   const byBrowser = {};
   for (const browser of browsers) {
-    byBrowser[browser] = summarizeBrowser(requirements, browser, floor?.[browser] ?? null, bcd);
+    byBrowser[browser] = summarizeBrowser(requirements, browser, bcd);
   }
   return { by_browser: byBrowser };
 }
@@ -929,17 +881,11 @@ export function inferDatasetMeta(dataset) {
 }
 
 export function generateLock({
-  floor,
   findings,
   additionalRequirements = [],
   floorRequirements = [],
   bcd,
 }) {
-  const normalizedFloor = normalizeVersionMap(floor ?? {}, '--floor');
-  if (Object.keys(normalizedFloor).length === 0) {
-    throw new Error('generateLock requires at least one browser floor.');
-  }
-
   const aggregatedFindings = aggregateFindings(findings?.findings ?? findings ?? []);
   const normalizedAdditionalRequirements = normalizeRequirementsInput(additionalRequirements, {
     source: 'additionalRequirements',
@@ -955,7 +901,6 @@ export function generateLock({
 
   const browsers = collectBrowsers({
     bcd,
-    floor: normalizedFloor,
     requirements: [...effectiveRequirements, ...normalizedFloorRequirements],
   });
   const floorRequirementEntries = resolvedRequirementEntries(normalizedFloorRequirements, browsers, bcd);
@@ -978,10 +923,9 @@ export function generateLock({
         bcd: inferDatasetMeta(bcd),
       },
     },
-    floor: { ...normalizedFloor },
     floor_requirements: floorRequirementEntries,
     requirements: requirementEntries,
-    summary: summarizeLock(combinedRequirements, normalizedFloor, bcd, browsers),
+    summary: summarizeLock(combinedRequirements, bcd, browsers),
   };
 }
 
@@ -1024,7 +968,6 @@ export function resolveLockForBrowser(lock, browser, mode, bcd = null) {
     requirements.push({ ref: requirement.ref, ...toReplayResolution(requirement, browser) });
   }
 
-  const floorVersion = lock.floor?.[browser] ?? null;
   let summary;
   if (mode === 'recompute' && bcd) {
     const recomputedRequirements = lockRequirements.map((requirement) => ({
@@ -1033,9 +976,9 @@ export function resolveLockForBrowser(lock, browser, mode, bcd = null) {
         [browser]: requirements.find((item) => item.ref === requirement.ref),
       },
     }));
-    summary = summarizeBrowser(recomputedRequirements, browser, floorVersion, bcd);
+    summary = summarizeBrowser(recomputedRequirements, browser, bcd);
   } else {
-    summary = summarizeBrowser(lockRequirements, browser, floorVersion, bcd ?? { browsers: {} });
+    summary = summarizeBrowser(lockRequirements, browser, bcd ?? { browsers: {} });
   }
 
   return {
@@ -1043,12 +986,10 @@ export function resolveLockForBrowser(lock, browser, mode, bcd = null) {
     browser,
     mode,
     state: summary.state,
-    floor: summary.floor,
     derived_floor: summary.derived_floor,
     known_floor: summary.known_floor,
-    compatible_with_floor: summary.compatible_with_floor,
     monotonic: summary.monotonic,
-    blocking_requirements: summary.blocking_requirements,
+    ...(summary.blocking_requirements ? { blocking_requirements: summary.blocking_requirements } : {}),
     requirements,
   };
 }

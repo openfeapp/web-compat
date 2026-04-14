@@ -116,9 +116,13 @@ If `version_removed` is present, the normalized entry MUST set `monotonic = fals
 For one browser, the resolver reports one of:
 
 - `exact`
+  Every requirement has a known exact floor for that browser, so the derived floor is directly usable.
 - `conservative`
+  The browser is satisfiable, but at least one requirement only provides a conservative floor such as `≤79`.
 - `unresolved`
+  One or more requirements are unknown for that browser, so no real floor can be concluded.
 - `unsatisfied`
+  One or more requirements are unsupported for that browser, so the browser family cannot satisfy the requirement set.
 
 Derived fields:
 
@@ -126,8 +130,8 @@ Derived fields:
   The exact or conservative maximum of all known per-requirement floors when the browser is satisfiable.
 - `known_floor`
   The maximum known floor even when the overall result is unresolved or unsatisfied.
-- `compatible_with_floor`
-  Comparison of the computed answer against the declared browser floor when a floor exists for that browser.
+- `blocking_requirements`
+  The short explanatory requirement set for `unresolved` and `unsatisfied` results. It lists the requirements causing that result.
 
 ## 8. `compat-findings/v1`
 
@@ -222,31 +226,17 @@ Required top-level fields:
 - `format`
 - `generated_at`
 - `tool`
-- `floor`
 - `floor_requirements`
 - `requirements`
 - `summary`
 
-### 10.1 Floor semantics
-
-`floor` is a map of declared browser floors, such as:
-
-```json
-{
-  "chrome": "120",
-  "firefox": "115"
-}
-```
-
-These values are policy inputs for comparison. They do not change the per-requirement BCD resolution itself.
-
-### 10.2 Floor requirements
+### 10.1 Floor requirements
 
 `floor_requirements` are normalized baseline requirements that define the starting platform assumptions for the application profile.
 
 They are always stored in the lock and always participate in summary and resolution.
 
-### 10.3 Omitted baseline intersection
+### 10.2 Omitted baseline intersection
 
 The lock omits app requirements already satisfied by the baseline intersection implied by `floor_requirements`.
 
@@ -257,7 +247,7 @@ That means:
 
 This omission is a deliberate compression rule for the lock model.
 
-### 10.4 Requirement entries
+### 10.3 Requirement entries
 
 A BCD requirement entry includes:
 
@@ -276,9 +266,9 @@ A manual requirement entry includes:
 - `support`
 - `resolved`
 
-### 10.5 Replay durability
+### 10.4 Replay durability
 
-The lock SHOULD store resolved data for every browser present in the generation-time BCD dataset so replay remains available even for browsers not listed in the declared `floor`.
+The lock SHOULD store resolved data for every browser present in the generation-time BCD dataset so replay remains available across the dataset used to generate the lock.
 
 ## 11. `compat-resolution/v1`
 
@@ -295,11 +285,9 @@ Required fields:
 
 Recommended summary fields:
 
-- `floor`
 - `derived_floor`
 - `known_floor`
-- `compatible_with_floor`
-- `blocking_requirements`
+- `blocking_requirements` for `unresolved` and `unsatisfied`
 
 Example:
 
@@ -309,14 +297,9 @@ Example:
   "browser": "chrome",
   "mode": "replay",
   "state": "exact",
-  "floor": "120",
   "derived_floor": "114",
   "known_floor": "114",
-  "compatible_with_floor": true,
   "monotonic": true,
-  "blocking_requirements": [
-    "bcd:css.properties.text-wrap"
-  ],
   "requirements": [
     {
       "ref": "bcd:css.properties.text-wrap",

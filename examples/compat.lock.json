@@ -1,8 +1,8 @@
 {
   "format": "compat-lock/v1",
-  "generated_at": "2026-04-14T07:29:22.900Z",
+  "generated_at": "2026-04-14T19:31:19.665Z",
   "tool": {
-    "generator": "compat-generate-lock/0.1.0",
+    "generator": "compat-generate-lock/0.1.1",
     "scanner": "sample-scanner/1.0.0",
     "registry": "sample-scanner-registry/1",
     "datasets": {
@@ -11,9 +11,6 @@
         "timestamp": "2026-04-13T00:00:00.000Z"
       }
     }
-  },
-  "floor": {
-    "chrome": "120"
   },
   "floor_requirements": [
     {
@@ -186,14 +183,9 @@
     "by_browser": {
       "chrome": {
         "state": "exact",
-        "floor": "120",
         "derived_floor": "114",
         "known_floor": "114",
-        "compatible_with_floor": true,
         "monotonic": true,
-        "blocking_requirements": [
-          "bcd:css.properties.text-wrap"
-        ],
         "requirements": [
           {
             "ref": "bcd:api.IDBFactory.open",

@@ -254,16 +254,23 @@ test('public CLIs print usage on no-arg invocation', async () => {
   }
 });
 
-test('compat-generate-lock requires --floor', async () => {
+test('compat-generate-lock generates a lock without --floor', async () => {
+  const dir = await makeTempDir();
+  const outPath = path.join(dir, 'compat.lock.json');
+
   const result = await runCli('bin/compat-generate-lock.mjs', [
     '--findings',
     'examples/compat.findings.json',
+    '--bcd',
+    'examples/bcd.fixture.json',
     '--out',
-    'tmp.lock.json',
+    outPath,
   ]);
-  assert.equal(result.code, 1);
-  assert.match(result.stderr, /Missing required argument --floor/);
-  assert.match(result.stderr, /Usage:/);
+
+  assert.equal(result.code, 0);
+  const lock = await readJsonFile(outPath);
+  assert.equal('floor' in lock, false);
+  assert.deepEqual(lock.floor_requirements, []);
 });
 
 test('compat-requirements normalization supports explicit bcd refs and manual support maps', () => {
@@ -307,20 +314,13 @@ test('sample scanner finds the expected BCD requirements', async () => {
 
 test('lock generation allows no floor requirements and keeps the full effective app requirement set', () => {
   const lock = generateLock({
-    floor: {
-      chrome: '120',
-      firefox: '115',
-    },
     findings: makeFindings(),
     additionalRequirements: makeAdditionalRequirements(),
     floorRequirements: [],
     bcd: makeFixtureBcd(),
   });
 
-  assert.deepEqual(lock.floor, {
-    chrome: '120',
-    firefox: '115',
-  });
+  assert.equal('floor' in lock, false);
   assert.deepEqual(lock.floor_requirements, []);
   assert.deepEqual(lock.requirements.map((item) => item.ref), [
     'bcd:api.IDBFactory.open',
@@ -331,9 +331,10 @@ test('lock generation allows no floor requirements and keeps the full effective 
   ]);
   assert.equal(lock.summary.by_browser.chrome.state, 'exact');
   assert.equal(lock.summary.by_browser.chrome.derived_floor, '114');
-  assert.equal(lock.summary.by_browser.chrome.compatible_with_floor, true);
+  assert.equal('blocking_requirements' in lock.summary.by_browser.chrome, false);
+  assert.equal('floor' in lock.summary.by_browser.chrome, false);
+  assert.equal('compatible_with_floor' in lock.summary.by_browser.chrome, false);
   assert.equal(lock.summary.by_browser.firefox.derived_floor, '122');
-  assert.equal(lock.summary.by_browser.firefox.compatible_with_floor, false);
   assert.deepEqual(lock.tool.datasets, {
     bcd: {
       version: 'fixture-2026.04.14',
@@ -360,8 +361,6 @@ test('compat-generate-lock omits floor requirements cleanly when the flag is not
   const result = await runCli('bin/compat-generate-lock.mjs', [
     '--findings',
     findingsPath,
-    '--floor',
-    'chrome=120,firefox=115',
     '--additional-requirements',
     additionalPath,
     '--bcd',
@@ -384,10 +383,6 @@ test('compat-generate-lock omits floor requirements cleanly when the flag is not
 
 test('lock generation omits app requirements already covered by explicit floor requirements', () => {
   const lock = generateLock({
-    floor: {
-      chrome: '120',
-      firefox: '115',
-    },
     findings: makeFindings(),
     additionalRequirements: makeAdditionalRequirements(),
     floorRequirements: ['bcd:api.IDBFactory.open'],
@@ -406,10 +401,6 @@ test('lock generation omits app requirements already covered by explicit floor r
 test('lock generation preserves all browsers from the BCD dataset for replay and recompute', () => {
   const bcd = makeFixtureBcd();
   const lock = generateLock({
-    floor: {
-      chrome: '120',
-      firefox: '115',
-    },
     findings: makeFindings(),
     additionalRequirements: makeAdditionalRequirements(),
     floorRequirements: ['bcd:api.IDBFactory.open'],
@@ -417,8 +408,9 @@ test('lock generation preserves all browsers from the BCD dataset for replay and
   });
 
   assert.deepEqual(Object.keys(lock.summary.by_browser), ['chrome', 'firefox', 'safari']);
-  assert.equal(lock.summary.by_browser.safari.floor, null);
-  assert.equal(lock.summary.by_browser.safari.compatible_with_floor, null);
+  assert.equal(lock.summary.by_browser.safari.derived_floor, '17.0');
+  assert.equal('floor' in lock.summary.by_browser.safari, false);
+  assert.equal('compatible_with_floor' in lock.summary.by_browser.safari, false);
 
   const replay = resolveLockForBrowser(lock, 'safari', 'replay');
   const recompute = resolveLockForBrowser(lock, 'safari', 'recompute', makeFixtureBcd());
@@ -426,6 +418,190 @@ test('lock generation preserves all browsers from the BCD dataset for replay and
   assert.equal(recompute.state, 'exact');
   assert.equal(replay.derived_floor, '17.0');
   assert.equal(recompute.derived_floor, '17.0');
+  assert.equal('blocking_requirements' in replay, false);
+  assert.equal('blocking_requirements' in recompute, false);
+  assert.equal('floor' in replay, false);
+  assert.equal('compatible_with_floor' in replay, false);
+  assert.equal('floor' in recompute, false);
+  assert.equal('compatible_with_floor' in recompute, false);
+});
+
+test('conservative browser results omit blocking_requirements', () => {
+  const bcd = {
+    browsers: {
+      chrome: {
+        releases: {
+          '70': { release_date: '2018-10-16' },
+          '79': { release_date: '2019-12-10' },
+          '80': { release_date: '2020-02-04' },
+        },
+      },
+    },
+    api: {
+      Example: {
+        feature: {
+          __compat: {
+            support: {
+              chrome: { version_added: '≤79' },
+            },
+            status: {
+              experimental: false,
+              standard_track: true,
+              deprecated: false,
+            },
+          },
+        },
+      },
+    },
+  };
+
+  const findings = {
+    format: 'compat-findings/v1',
+    generated_at: '2026-04-14T00:00:00.000Z',
+    tool: {
+      scanner: 'sample-scanner/1.0.0',
+      registry: 'sample-scanner-registry/1',
+    },
+    findings: [
+      {
+        kind: 'bcd',
+        ref: 'bcd:api.Example.feature',
+        key: 'api.Example.feature',
+        selector: {
+          prefix: null,
+          alternative_name: null,
+          allow_flags: false,
+          allow_partial_implementation: false,
+        },
+        evidence: [{ path: 'app.js', rule: 'sample/example-feature' }],
+      },
+    ],
+  };
+
+  const lock = generateLock({
+    findings,
+    bcd,
+  });
+
+  assert.equal(lock.summary.by_browser.chrome.state, 'conservative');
+  assert.equal(lock.summary.by_browser.chrome.derived_floor, '79');
+  assert.equal('blocking_requirements' in lock.summary.by_browser.chrome, false);
+
+  const replay = resolveLockForBrowser(lock, 'chrome', 'replay');
+  const recompute = resolveLockForBrowser(lock, 'chrome', 'recompute', bcd);
+  assert.equal(replay.state, 'conservative');
+  assert.equal(recompute.state, 'conservative');
+  assert.equal('blocking_requirements' in replay, false);
+  assert.equal('blocking_requirements' in recompute, false);
+});
+
+test('unresolved browser results emit blocking_requirements from unknown requirements', () => {
+  const lock = generateLock({
+    findings: {
+      format: 'compat-findings/v1',
+      generated_at: '2026-04-14T00:00:00.000Z',
+      tool: {
+        scanner: 'sample-scanner/1.0.0',
+        registry: 'sample-scanner-registry/1',
+      },
+      findings: [],
+    },
+    additionalRequirements: [{
+      kind: 'manual',
+      id: 'behavior.chrome-only-manual',
+      support: {
+        chrome: '104',
+      },
+      source: ['https://example.com/manual'],
+    }],
+    bcd: makeFixtureBcd(),
+  });
+
+  assert.equal(lock.summary.by_browser.firefox.state, 'unresolved');
+  assert.equal(lock.summary.by_browser.firefox.derived_floor, null);
+  assert.deepEqual(lock.summary.by_browser.firefox.blocking_requirements, [
+    'manual:behavior.chrome-only-manual',
+  ]);
+
+  const replay = resolveLockForBrowser(lock, 'firefox', 'replay');
+  const recompute = resolveLockForBrowser(lock, 'firefox', 'recompute', makeFixtureBcd());
+  assert.equal(replay.state, 'unresolved');
+  assert.equal(recompute.state, 'unresolved');
+  assert.deepEqual(replay.blocking_requirements, ['manual:behavior.chrome-only-manual']);
+  assert.deepEqual(recompute.blocking_requirements, ['manual:behavior.chrome-only-manual']);
+});
+
+test('unsatisfied browser results emit blocking_requirements from unsupported requirements', () => {
+  const bcd = {
+    browsers: {
+      chrome: {
+        releases: {
+          '1': { release_date: '2008-09-02' },
+        },
+      },
+      firefox: {
+        releases: {
+          '1': { release_date: '2004-11-09' },
+        },
+      },
+    },
+    api: {
+      Example: {
+        unsupported: {
+          __compat: {
+            support: {
+              chrome: { version_added: '1' },
+              firefox: { version_added: false },
+            },
+            status: {
+              experimental: false,
+              standard_track: true,
+              deprecated: false,
+            },
+          },
+        },
+      },
+    },
+  };
+
+  const lock = generateLock({
+    findings: {
+      format: 'compat-findings/v1',
+      generated_at: '2026-04-14T00:00:00.000Z',
+      tool: {
+        scanner: 'sample-scanner/1.0.0',
+        registry: 'sample-scanner-registry/1',
+      },
+      findings: [
+        {
+          kind: 'bcd',
+          ref: 'bcd:api.Example.unsupported',
+          key: 'api.Example.unsupported',
+          selector: {
+            prefix: null,
+            alternative_name: null,
+            allow_flags: false,
+            allow_partial_implementation: false,
+          },
+          evidence: [{ path: 'app.js', rule: 'sample/example-unsupported' }],
+        },
+      ],
+    },
+    bcd,
+  });
+
+  assert.equal(lock.summary.by_browser.firefox.state, 'unsatisfied');
+  assert.equal(lock.summary.by_browser.firefox.derived_floor, null);
+  assert.deepEqual(lock.summary.by_browser.firefox.blocking_requirements, [
+    'bcd:api.Example.unsupported',
+  ]);
+
+  const replay = resolveLockForBrowser(lock, 'firefox', 'replay');
+  const recompute = resolveLockForBrowser(lock, 'firefox', 'recompute', bcd);
+  assert.equal(replay.state, 'unsatisfied');
+  assert.equal(recompute.state, 'unsatisfied');
+  assert.deepEqual(replay.blocking_requirements, ['bcd:api.Example.unsupported']);
+  assert.deepEqual(recompute.blocking_requirements, ['bcd:api.Example.unsupported']);
 });
 
 test('compat-generate-lock accepts comma-separated floor and additional requirements files', async () => {
@@ -464,8 +640,6 @@ test('compat-generate-lock accepts comma-separated floor and additional requirem
   const result = await runCli('bin/compat-generate-lock.mjs', [
     '--findings',
     findingsPath,
-    '--floor',
-    'chrome=120,firefox=115',
     '--floor-requirements',
     `${floorReqAPath},${floorReqBPath}`,
     '--additional-requirements',
